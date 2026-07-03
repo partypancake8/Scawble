@@ -13,7 +13,7 @@ const PLABEL = { DL: '2L', TL: '3L', DW: '2W', TW: '3W' };
 let words = null, game = null, difficulty = 'expert';
 let draft = [];            // [{tile,row,col,letter,blank}]
 let rackOrder = [];
-let busy = false, validNow = false, shownIds = new Set();
+let busy = false, validNow = false, shownIds = new Set(), botTimer = null;
 let draggingId = null, pendingId = null, tapSelected = null;
 let hint = null;
 let swapMode = false, swapSel = new Set();
@@ -92,6 +92,7 @@ function buildBlankLetters() {
 
 // ---------- lifecycle ----------
 function start(seed) {
+  clearTimeout(botTimer); botTimer = null; // cancel any pending bot move from a prior game
   game = createGame(words, { seed, difficulty });
   draft = []; busy = false; validNow = false; shownIds = new Set();
   draggingId = pendingId = tapSelected = hint = null; swapMode = false; swapSel = new Set();
@@ -299,8 +300,9 @@ function toggleSwap(id) { swapSel.has(id) ? swapSel.delete(id) : swapSel.add(id)
 function confirmSwap() {
   const tiles = game.state.racks.player.filter((t) => swapSel.has(t.id));
   if (!tiles.length) { message('Pick at least one tile.', true); return; }
-  if (game.state.bag.length < tiles.length) { message('Not enough tiles left to swap that many.', true); return; }
-  game.swap(tiles); exitSwap(); syncRack(); renderAll(); afterPlayer();
+  const res = game.swap(tiles);
+  if (!res.ok) { message(res.error || 'Cannot swap right now.', true); return; }
+  exitSwap(); syncRack(); renderAll(); afterPlayer();
 }
 function exitSwap() { swapMode = false; swapSel = new Set(); exitSwapUI(); renderAll(); }
 function exitSwapUI() { $('controls').classList.remove('hidden'); $('swapbar').classList.add('hidden'); }
@@ -330,7 +332,7 @@ function afterPlayer() {
   syncRack(); renderAll();
   if (game.state.over) return endGame();
   busy = true; renderControls(); message('ScawBot is thinking…');
-  setTimeout(botMove, 480);
+  clearTimeout(botTimer); botTimer = setTimeout(botMove, 480);
 }
 function botMove() {
   const move = game.botTurn();

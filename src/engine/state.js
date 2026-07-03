@@ -3,7 +3,7 @@
 // an equal number of final turns before the game ends. See PRD §07.
 
 import { makeBoard } from './board.js';
-import { makeBag, draw, RACK_SIZE } from './tiles.js';
+import { makeBag, draw, makeRng, RACK_SIZE } from './tiles.js';
 import { validate } from './rules.js';
 import { scoreMove } from './score.js';
 
@@ -118,15 +118,17 @@ export function pass(state) {
   return { ok: true, state };
 }
 
-/** Swap tiles back into the bag (only if the bag has >= RACK_SIZE tiles). */
+/** Exchange tiles: only if the bag holds at least as many tiles as you swap. */
 export function swap(state, tiles) {
   if (state.over) return { ok: false, error: 'Game over.', state };
-  if (state.bag.length < RACK_SIZE) return { ok: false, error: 'Not enough tiles to swap.', state };
+  if (state.bag.length < tiles.length) return { ok: false, error: 'Not enough tiles left in the bag to swap that many.', state };
   const rack = state.racks[state.turn];
   if (!takeFromRack(rack, tiles)) return { ok: false, error: 'Tile not in rack.', state };
-  rack.push(...draw(state.bag, tiles.length));
+  rack.push(...draw(state.bag, tiles.length)); // draw replacements before returning the old tiles
   state.bag.push(...tiles);
-  // reshuffle happens implicitly next draw order; fine for v1
+  // reshuffle so exchanged tiles aren't drawn straight back; seeded to stay deterministic
+  const rng = makeRng(`${state.seed}:swap:${state.history.length}`);
+  for (let i = state.bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [state.bag[i], state.bag[j]] = [state.bag[j], state.bag[i]]; }
   state.passes += 1;
   state.history.push({ by: state.turn, swap: tiles.length, score: 0 });
   endPly(state);

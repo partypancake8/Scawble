@@ -6,7 +6,7 @@ import { VALUE, makeBag, TOTAL_TILES } from '../src/engine/tiles.js';
 import { makeBoard } from '../src/engine/board.js';
 import { scoreMove } from '../src/engine/score.js';
 import { validate } from '../src/engine/rules.js';
-import { newGame, applyMove, pass } from '../src/engine/state.js';
+import { newGame, applyMove, pass, swap } from '../src/engine/state.js';
 import { starterLexicon as LEX } from '../src/lexicon/lexicon.js';
 
 // --- tiny harness ---
@@ -120,6 +120,19 @@ ok(makeBag('abc').map(t => t.letter).join('') !== makeBag('xyz').map(t => t.lett
   pass(g); ok(g.finalCountdown === 1 && !g.over, 'one final ply consumed');
   pass(g); ok(g.over, 'game ends after equal final turns');
   ok(g.scores.player <= 0 && g.scores.bot <= 0, 'leftover racks deducted at end');
+}
+
+// --- 13. swap: rejects when the bag is too small, exchanges when there's room ---
+{
+  const g = newGame('swap-a'); g.bag.length = 2;           // shrink bag to 2 tiles
+  ok(!swap(g, g.racks.player.slice(0, 3)).ok, 'swap rejected when bag < tiles requested');
+  const g2 = newGame('swap-b');
+  const two = g2.racks.player.slice(0, 2), bagBefore = g2.bag.length;
+  const r = swap(g2, two);
+  ok(r.ok, 'swap succeeds when the bag has room');
+  eq(g2.racks.player.length, 7, 'rack still full after swap');
+  eq(g2.bag.length, bagBefore, 'bag size unchanged (2 out, 2 in)');
+  eq(g2.turn, 'bot', 'swap passes the turn');
 }
 
 // commit helper: place a move's tiles onto the board (test scaffolding)

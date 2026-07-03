@@ -45,9 +45,9 @@ function crossSet(board, r, c, horiz, lexicon) {
   return okSet;
 }
 
-function isAnchor(board, r, c) {
+function isAnchor(board, r, c, empty) {
   if (board[r][c].tile) return false;
-  if (isEmpty(board)) return r === CENTER.row && c === CENTER.col;
+  if (empty) return r === CENTER.row && c === CENTER.col; // caller passes isEmpty(board) once
   for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]])
     if (inBounds(r + dr, c + dc) && board[r + dr][c + dc].tile) return true;
   return false;
@@ -87,11 +87,11 @@ export function generateMoves(board, rack, trie, lexicon, opts = {}) {
 
       for (let i = 0; i < SIZE; i++) {
         const [ar, ac] = toRC(line, i);
-        if (!isAnchor(board, ar, ac)) continue;
+        if (!isAnchor(board, ar, ac, empty)) continue;
 
         // How many empty squares are available to the left before a tile/edge.
         let leftRoom = 0;
-        for (let k = i - 1; k >= 0; k--) { const [r, c] = toRC(line, k); if (board[r][c].tile) break; if (isAnchor(board, r, c)) break; leftRoom++; }
+        for (let k = i - 1; k >= 0; k--) { const [r, c] = toRC(line, k); if (board[r][c].tile) break; if (isAnchor(board, r, c, empty)) break; leftRoom++; }
 
         // extendRight from square j with current trie node; `placed` are new tiles
         const extendRight = (j, node, placed, rackLeft) => {

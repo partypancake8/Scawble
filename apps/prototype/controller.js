@@ -70,7 +70,7 @@ export function createGame(words, { seed = 'default', difficulty = 'expert' } = 
         : 100;
       const luckDen = playerBestTotal + botBestTotal;
       const luck = luckDen ? Math.round((playerBestTotal / luckDen) * 100) : 50;
-      let bestPlay = { actual: -1 };
+      let bestPlay = { actual: 0 }; // no `words` until a real move beats it → renders "—"
       let biggestMiss = { gap: -1 };
       for (const a of analysis) {
         if (a.actual > bestPlay.actual) bestPlay = a;
