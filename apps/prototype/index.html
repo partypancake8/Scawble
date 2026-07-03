@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <title>Scawble</title>
+  <link rel="stylesheet" href="./fonts.css" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- HOME -->
+  <div id="home" class="screen">
+    <button class="iconbtn ghost corner" id="homeSettings" title="Settings">⚙</button>
+    <div class="wordmark" id="wordmark"></div>
+    <p class="tagline">A cozy daily word game. Just you and ScawBot.</p>
+    <div class="menu">
+      <div class="diffrow" id="diffrow"></div>
+      <button class="btn primary" id="playDaily" disabled>Loading dictionary…</button>
+      <button class="btn" id="playClassic" disabled>Classic game</button>
+      <div class="streak" id="streak"></div>
+    </div>
+    <div class="msg err hidden" id="loaderr"></div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game" class="screen hidden">
+    <div class="topbar">
+      <div class="sidescore" id="scorePlayer">
+        <span class="who">You</span>
+        <span class="pts">0</span>
+        <span class="last" id="lastPlayer">ready</span>
+      </div>
+      <div class="topmid">
+        <div class="bag" id="bag"><b>—</b><span>in bag</span></div>
+        <div class="topbtns">
+          <button class="iconbtn" id="logBtn" title="Move log">☰</button>
+          <button class="iconbtn" id="setBtn" title="Settings">⚙</button>
+          <button class="iconbtn" id="homeBtn" title="Home">⌂</button>
+        </div>
+      </div>
+      <div class="sidescore right" id="scoreBot">
+        <span class="who">ScawBot</span>
+        <span class="pts">0</span>
+        <span class="last" id="lastBot">ready</span>
+      </div>
+    </div>
+
+    <div class="board" id="board"></div>
+    <div class="msg" id="msg"></div>
+    <div class="rack" id="rack"></div>
+
+    <div class="controls" id="controls">
+      <button class="btn" id="shuffle">Shuffle</button>
+      <button class="btn" id="recall">Recall</button>
+      <button class="btn" id="hint">Hint</button>
+      <button class="btn" id="swap">Swap</button>
+      <button class="btn" id="pass">Pass</button>
+      <button class="btn submit" id="submit" disabled>Submit</button>
+    </div>
+    <div class="swapbar hidden" id="swapbar">
+      <span id="swapinfo">Tap tiles to swap, then confirm.</span>
+      <button class="btn" id="swapConfirm">Swap 0</button>
+      <button class="btn ghost" id="swapCancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ANALYSIS -->
+  <div id="analysis" class="screen hidden"></div>
+
+  <!-- SETTINGS -->
+  <div id="settings" class="screen hidden">
+    <h2 class="screentitle">Settings</h2>
+    <div class="setlist" id="setlist"></div>
+    <button class="btn primary" id="setBack">Done</button>
+  </div>
+
+  <!-- OVERLAYS -->
+  <div id="blankpicker" class="overlay hidden">
+    <div class="sheet">
+      <div class="sheettitle">Choose a letter</div>
+      <div class="letters" id="blankletters"></div>
+      <button class="btn ghost" id="blankcancel">Cancel</button>
+    </div>
+  </div>
+  <div id="movelog" class="overlay hidden">
+    <div class="sheet">
+      <div class="sheettitle">Moves</div>
+      <div class="logbody" id="logbody"></div>
+      <button class="btn ghost" id="logclose">Close</button>
+    </div>
+  </div>
+
+  <div id="fx"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

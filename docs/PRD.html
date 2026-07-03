@@ -1,0 +1,475 @@
+<title>Scawble — Executable Build Spec</title>
+<style>
+  :root {
+    --paper: #F4F2EC; --surface: #FBFAF6; --ink: #1C2230; --ink-soft: #3B4457;
+    --muted: #6C7488; --line: #DAD6CB; --line-soft: #E7E3D9;
+    --tw: #B0392C; --tw-soft: #E9C4bf; --dw: #C77E86; --tl: #2E6E8E; --dl: #6FA8C0;
+    --tile: #E8DFC8; --tile-edge: #cbbf9e; --tile-ink: #232323;
+    --ok: #2f7d5b; --warn: #B4791E;
+    --code-bg: #1d2230; --code-ink: #d7dbe6; --code-dim: #7f8aa3;
+    --code-key: #e0a35a; --code-str: #83c9a8; --code-type: #79b1d6;
+    --serif: "Iowan Old Style","Palatino Linotype","Palatino","Book Antiqua",Georgia,serif;
+    --sans: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono: ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",Menlo,Consolas,monospace;
+    --maxw: 64rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12151C; --surface: #191D26; --ink: #ECEAE2; --ink-soft: #C3C6CE;
+      --muted: #8A90A0; --line: #2A2F3B; --line-soft: #232833;
+      --tw: #E06455; --tw-soft: #4a2420; --dw: #D98D96; --tl: #5FA6C6; --dl: #7FB6cf;
+      --tile: #D9CFB4; --tile-edge: #b6a982;
+      --code-bg: #0C0F15; --code-ink: #d7dbe6;
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #F4F2EC; --surface: #FBFAF6; --ink: #1C2230; --ink-soft: #3B4457;
+    --muted: #6C7488; --line: #DAD6CB; --line-soft: #E7E3D9;
+    --tw: #B0392C; --tw-soft: #E9C4bf; --dw: #C77E86; --tl: #2E6E8E; --dl: #6FA8C0;
+    --tile: #E8DFC8; --tile-edge: #cbbf9e; --code-bg: #1d2230;
+  }
+  :root[data-theme="dark"] {
+    --paper: #12151C; --surface: #191D26; --ink: #ECEAE2; --ink-soft: #C3C6CE;
+    --muted: #8A90A0; --line: #2A2F3B; --line-soft: #232833;
+    --tw: #E06455; --tw-soft: #4a2420; --dw: #D98D96; --tl: #5FA6C6; --dl: #7FB6cf;
+    --tile: #D9CFB4; --tile-edge: #b6a982; --code-bg: #0C0F15;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height:1.62; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 1.5rem 6rem; }
+
+  .mast { padding: 4rem 0 2.4rem; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-family: var(--mono); font-size:.72rem; letter-spacing:.18em; text-transform:uppercase; color: var(--muted); margin:0 0 1.4rem; }
+  .tiles { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:1.4rem; }
+  .tile { position:relative; width:3.4rem; height:3.4rem; background: linear-gradient(155deg,#f2ecd9,var(--tile)); border:1px solid var(--tile-edge); border-radius:7px; color: var(--tile-ink); display:grid; place-items:center; font-family: var(--serif); font-weight:700; font-size:1.9rem; box-shadow: 0 2px 0 var(--tile-edge), 0 4px 10px rgba(0,0,0,.16); }
+  .tile sub { position:absolute; right:.32rem; bottom:.18rem; font-family: var(--sans); font-weight:600; font-size:.62rem; line-height:1; color:#4a4a4a; }
+  @media (max-width:480px){ .tile{ width:2.5rem; height:2.5rem; font-size:1.35rem;} .tile sub{ font-size:.5rem;} }
+  .lede { font-family: var(--serif); font-size:1.5rem; line-height:1.4; max-width:42ch; margin:0 0 1.6rem; text-wrap: balance; }
+  .lede em { font-style: italic; color: var(--tw); }
+  .metarow { display:flex; flex-wrap:wrap; gap:1.6rem; font-family: var(--mono); font-size:.74rem; color: var(--muted); }
+  .metarow b { color: var(--ink-soft); font-weight:600; }
+
+  section { padding-top: 3.4rem; scroll-margin-top: 1rem; }
+  h2 { font-family: var(--serif); font-size:1.8rem; margin:0 0 .3rem; letter-spacing:-.01em; text-wrap:balance; }
+  .h2mark { display:flex; align-items:baseline; gap:.7rem; }
+  .h2mark .n { font-family: var(--mono); font-size:.8rem; color: var(--tw); font-weight:600; letter-spacing:.05em; }
+  .sub { color: var(--muted); margin:0 0 1.6rem; max-width:64ch; }
+  p { max-width: 66ch; }
+  h2 + p, h2 + .sub { margin-top:.6rem; }
+  h3.blk { font-family: var(--serif); font-size:1.22rem; margin:1.8rem 0 .5rem; }
+  a { color: var(--tl); text-underline-offset:2px; text-decoration-thickness:1px; }
+  a:hover { color: var(--tw); }
+
+  /* nav */
+  nav.toc { position: sticky; top:0; z-index:5; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom:1px solid var(--line); margin: 2.4rem 0 0; padding:.6rem 0; display:flex; flex-wrap:wrap; gap:.2rem .3rem; }
+  nav.toc a { font-family: var(--mono); font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color: var(--muted); text-decoration:none; padding:.25rem .5rem; border-radius:6px; }
+  nav.toc a:hover { color: var(--ink); background: var(--surface); }
+
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  @media (max-width:640px){ .cols { grid-template-columns:1fr; } }
+  .panel { background: var(--surface); border:1px solid var(--line); border-radius:12px; padding:1.2rem 1.3rem; }
+  .panel h3 { font-family: var(--mono); font-size:.74rem; letter-spacing:.12em; text-transform:uppercase; margin:0 0 .8rem; display:flex; gap:.5rem; align-items:center; }
+  .panel.in h3 { color: var(--ok); } .panel.out h3 { color: var(--muted); }
+  .panel ul { margin:0; padding-left:1.1rem; } .panel li { margin:.35rem 0; } .panel.out li { color: var(--muted); }
+
+  .cards { display:grid; gap:1rem; }
+  .card { background: var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent, var(--tl)); border-radius:12px; padding:1.25rem 1.4rem; }
+  .card h3 { font-family: var(--serif); font-size:1.2rem; margin:0 0 .2rem; }
+  .card .tag { font-family: var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color: var(--accent, var(--tl)); font-weight:600; }
+  .card p { margin:.55rem 0; }
+  .call { margin-top:.7rem; padding-top:.7rem; border-top:1px dashed var(--line); font-size:.92rem; }
+  .call b { color: var(--tw); font-family: var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; margin-right:.5rem; }
+  .refs { font-size:.82rem; color: var(--muted); margin-top:.5rem; }
+
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; margin: .4rem 0; }
+  table { border-collapse:collapse; width:100%; min-width:34rem; font-size:.9rem; }
+  th, td { text-align:left; padding:.65rem .9rem; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-family: var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color: var(--muted); background: var(--surface); position: sticky; top: 0; }
+  tr:last-child td { border-bottom:none; }
+  td code, p code, li code { font-family: var(--mono); font-size:.82em; background: color-mix(in srgb, var(--tl) 12%, transparent); padding:.05rem .3rem; border-radius:4px; }
+  .pick td { background: color-mix(in srgb, var(--tw) 8%, transparent); } .pick td:first-child { font-weight:700; }
+  .badge { display:inline-block; font-family: var(--mono); font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; padding:.15rem .45rem; border-radius:5px; margin-left:.4rem; background: var(--tw); color:#fff; vertical-align:middle; }
+
+  pre { background: var(--code-bg); color: var(--code-ink); border-radius:12px; padding:1.1rem 1.2rem; overflow-x:auto; font-family: var(--mono); font-size:.82rem; line-height:1.6; border:1px solid rgba(255,255,255,.06); }
+  pre .k { color: var(--code-key); } pre .s { color: var(--code-str); } pre .t { color: var(--code-type); } pre .c { color: var(--code-dim); font-style:italic; }
+  pre b { color:#fff; font-weight:600; }
+
+  .checklist { list-style:none; padding:0; margin:.4rem 0; }
+  .checklist li { position:relative; padding-left:1.9rem; margin:.5rem 0; }
+  .checklist li::before { content:""; position:absolute; left:0; top:.15rem; width:1.15rem; height:1.15rem; border:2px solid var(--ok); border-radius:5px; }
+  .checklist li::after { content:"✓"; position:absolute; left:.22rem; top:-.02rem; color: var(--ok); font-weight:700; font-size:.95rem; }
+  .checklist li b { color: var(--ink); }
+
+  .kv { display:grid; grid-template-columns: max-content 1fr; gap:.35rem 1.1rem; font-size:.9rem; margin:.6rem 0; }
+  .kv dt { font-family: var(--mono); font-size:.75rem; color: var(--tl); padding-top:.05rem; }
+  .kv dd { margin:0; color: var(--ink-soft); }
+
+  .callout { background: var(--tw-soft); border:1px solid color-mix(in srgb, var(--tw) 40%, transparent); border-radius:12px; padding:1.1rem 1.3rem; margin-top:1rem; }
+  .callout h3 { margin:0 0 .4rem; font-family: var(--serif); font-size:1.15rem; color: var(--tw); }
+  .callout p { margin:.4rem 0; }
+  .note { background: var(--surface); border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:12px; padding:1rem 1.2rem; margin:1rem 0; }
+  .note b { color: var(--warn); }
+
+  .tier { display:grid; grid-template-columns:auto 1fr; gap:1.1rem; align-items:start; padding:1rem 0; border-bottom:1px solid var(--line-soft); }
+  .tier:last-child { border-bottom:none; }
+  .chip { font-family: var(--mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; font-weight:600; padding:.35rem .6rem; border-radius:6px; white-space:nowrap; border:1px solid var(--line); color: var(--ink-soft); background: var(--surface); }
+  .tier ul { margin:.1rem 0 0; padding-left:1.1rem; } .tier li { margin:.25rem 0; } .tier li b { color: var(--ink); }
+
+  .phase { display:grid; grid-template-columns:9rem 1fr; gap:1rem; padding:1rem 0; border-top:1px solid var(--line-soft); }
+  .phase:first-of-type { border-top:none; }
+  .phase .when { font-family: var(--mono); font-size:.8rem; }
+  .phase .when .bar { display:block; height:6px; border-radius:3px; margin-top:.45rem; }
+  .phase h4 { margin:0 0 .25rem; font-size:1.05rem; }
+  .phase p { margin:.15rem 0; font-size:.9rem; color: var(--ink-soft); }
+  .gate { margin-top:.5rem; font-family: var(--mono); font-size:.74rem; color: var(--ok); }
+  .gate b { color: var(--ok); }
+
+  .oq li { margin:.5rem 0; } .oq b { font-family: var(--mono); font-size:.72rem; color: var(--tl); letter-spacing:.05em; margin-right:.4rem; }
+  footer { margin-top:4rem; padding-top:1.5rem; border-top:1px solid var(--line); color: var(--muted); font-family: var(--mono); font-size:.74rem; }
+  :focus-visible { outline:2px solid var(--tl); outline-offset:2px; border-radius:3px; }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">Executable Build Spec · v1.0 · single-player</p>
+    <div class="tiles" aria-label="Scawble">
+      <div class="tile">S<sub>1</sub></div><div class="tile">C<sub>2</sub></div><div class="tile">A<sub>1</sub></div><div class="tile">W<sub>5</sub></div><div class="tile">B<sub>3</sub></div><div class="tile">L<sub>1</sub></div><div class="tile">E<sub>1</sub></div>
+    </div>
+    <p class="lede">A single-player tile word game built to <em>match the polish of NYT Crossplay</em> — specified precisely enough to build end-to-end.</p>
+    <div class="metarow">
+      <span><b>Owner</b> Sawyer</span>
+      <span><b>North star</b> NYT Crossplay</span>
+      <span><b>Target</b> iOS-first · RN + Skia</span>
+      <span><b>Direction</b> Faithful + polish <span style="color:var(--ok)">✓ locked</span></span>
+      <span><b>Scope</b> Solo only, no live MP</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Contents">
+    <a href="#use">How to use</a><a href="#north">North star</a><a href="#scope">Scope</a><a href="#tokens">Design system</a><a href="#feel">Interaction spec</a><a href="#screens">Screens</a><a href="#arch">Architecture</a><a href="#models">Data models</a><a href="#ai">AI</a><a href="#content">Content</a><a href="#recon">Recon</a><a href="#dod">Done</a><a href="#loop">Build loop</a><a href="#legal">Legal</a>
+  </nav>
+
+  <section id="use">
+    <div class="h2mark"><span class="n">00</span><h2>How to use this document</h2></div>
+    <p class="sub">This is written to be executed by an autonomous coding loop, not just read.</p>
+    <p>Every section below is a contract. The <a href="#tokens">design tokens</a>, <a href="#feel">interaction timings</a>, <a href="#models">data models</a>, and <a href="#dod">definition of done</a> are literal — copy them, don't reinterpret them. The <a href="#loop">build loop</a> at the end is the execution order, and each phase has an <b>exit gate</b>: an objective, testable condition that must pass before moving on. An agent runs the loop top to bottom, self-verifying at each gate.</p>
+    <div class="note">
+      <p><b>Honest caveat.</b> A single autonomous pass producing a fully polished, ship-quality game is at the frontier of what's reliable today — "feel" in particular is judged, not compiled. This spec is built to maximize a clean run by making every subjective thing objective (exact curves, durations, colors, acceptance tests) and by structuring the work behind self-checking gates. Expect the loop to iterate on the feel phase against its checklist rather than nail it in one shot. The spec is the thing that makes that iteration convergent instead of endless.</p>
+    </div>
+  </section>
+
+  <section id="north">
+    <div class="h2mark"><span class="n">01</span><h2>North star — NYT Crossplay</h2></div>
+    <p class="sub"><b>Primary reference:</b> <a href="https://apps.apple.com/us/app/nyt-crossplay-play-and-spell/id6615086509">NYT Crossplay</a> (launched Jan 2026), NYT Games' Scrabble-like tile game — we replicate its <b>solo-vs-bot slice</b> and its rules. <b>Secondary reference:</b> the broader NYT Games craft bar (Wordle/Connections/Crossword) — the typography, daily cadence, stats/streak screens, and restraint that make the whole app feel considered. Build to both: Crossplay for <i>what the game is</i>, NYT-at-large for <i>how it should feel</i>.</p>
+    <div class="cols">
+      <div class="panel in"><h3>◆ We replicate from Crossplay</h3><ul>
+        <li><b>Rebalanced tiles</b> — N/R/S/T = 1pt, K/V/W/Y = 5–6pt; rewards clever placement over hoarding high-value letters (§03)</li>
+        <li><b>Fair endgame</b> — when the bag empties, both sides get an equal number of final turns (their "last turn" rule)</li>
+        <li><b>CrossBot-style analysis</b> — every move reviewed, best play surfaced, rated on <b>luck</b> and <b>strategy</b> (§05) — our marquee, and it's inherently single-player</li>
+        <li><b>Clean, board-focused UI</b> — "no cartoon graphics, no interruptions"; the opposite of Words With Friends</li>
+        <li><b>Solo-vs-bot, no time pressure</b> — Crossplay ships this exact mode; it's our whole v1</li>
+        <li><b>NYT restraint</b> — typographic confidence, generous whitespace, brief earned celebration, instant offline no-login core, real accessibility</li>
+      </ul></div>
+      <div class="panel out"><h3>◇ We deliberately avoid</h3><ul>
+        <li>Cartoon/casino aesthetics, coin showers, mid-game ad interruptions</li>
+        <li>Login walls before first play</li>
+        <li>Cluttered HUDs; competing accent colors</li>
+        <li>Long unskippable celebration sequences</li>
+        <li>Energy timers / dark-pattern monetization</li>
+      </ul></div>
+    </div>
+    <div class="note"><p><b>What we drop (for v1).</b> Crossplay's core is live two-player (invite friends / skill-matched strangers). We cut all of that and lean into the parts that stand alone: the solo bot game, the daily, and the CrossBot-style analysis. Adding async play-a-friend later is the natural next step.</p></div>
+  </section>
+
+  <section id="scope">
+    <div class="h2mark"><span class="n">02</span><h2>Scope — v1</h2></div>
+    <div class="cols">
+      <div class="panel in"><h3>◆ In</h3><ul>
+        <li>15×15 board, full rules, scoring, validation</li>
+        <li>Public-domain dictionary (ENABLE) + DAWG lookup</li>
+        <li>GADDAG AI opponent, 4 difficulty tiers</li>
+        <li>The full tile-feel interaction spec (§04)</li>
+        <li>Daily puzzle, Classic vs. bot, Solo "best word" puzzle</li>
+        <li>Post-game analysis + stats/streak screen</li>
+        <li>Local persistence, settings, cosmetics scaffold</li>
+      </ul></div>
+      <div class="panel out"><h3>◇ Out (v1)</h3><ul>
+        <li>Live online multiplayer</li>
+        <li>Accounts / backend / matchmaking</li>
+        <li>Async play-a-friend <span style="color:var(--warn)">(first post-v1 add)</span></li>
+        <li>Global leaderboards, social</li>
+        <li>IAP / monetization</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="tokens">
+    <div class="h2mark"><span class="n">03</span><h2>Design system — literal tokens</h2></div>
+    <p class="sub">Build every screen from these. No ad-hoc colors, sizes, or fonts.</p>
+    <pre><span class="c">// tokens.ts — single source of truth</span>
+export const <b>color</b> = {
+  ink:      { <span class="t">light</span>: <span class="s">'#1C2230'</span>, <span class="t">dark</span>: <span class="s">'#ECEAE2'</span> },
+  paper:    { <span class="t">light</span>: <span class="s">'#F4F2EC'</span>, <span class="t">dark</span>: <span class="s">'#12151C'</span> },
+  surface:  { <span class="t">light</span>: <span class="s">'#FBFAF6'</span>, <span class="t">dark</span>: <span class="s">'#191D26'</span> },
+  accent:   { <span class="t">light</span>: <span class="s">'#B0392C'</span>, <span class="t">dark</span>: <span class="s">'#E06455'</span> }, <span class="c">// single franchise accent</span>
+  tileFace: <span class="s">'#E8DFC8'</span>, tileEdge: <span class="s">'#CBBF9E'</span>, tileInk: <span class="s">'#232323'</span>,
+  premium:  { DL: <span class="s">'#6FA8C0'</span>, TL: <span class="s">'#2E6E8E'</span>, DW: <span class="s">'#C77E86'</span>, TW: <span class="s">'#B0392C'</span> },
+  good: <span class="s">'#2F7D5B'</span>, warn: <span class="s">'#B4791E'</span>,
+};
+export const <b>type</b> = {
+  display: <span class="s">'Serif — headers, wordmark, big numbers'</span>,  <span class="c">// Iowan/Palatino/Georgia stack</span>
+  body:    <span class="s">'System sans — UI text'</span>,
+  data:    <span class="s">'Mono — scores, labels, stats'</span>,
+  scale:   [12, 14, 16, 20, 26, 34, 46],  <span class="c">// px; stay on the scale</span>
+};
+export const <b>space</b>  = [0, 4, 8, 12, 16, 24, 32, 48, 64];  <span class="c">// 8pt-ish grid</span>
+export const <b>radius</b> = { tile: 7, card: 12, pill: 999 };
+export const <b>tile</b>   = { size: 40, gap: 3 };  <span class="c">// board cell = tile+gap</span></pre>
+    <h3 class="blk">Tile values &amp; bag — Crossplay-style rebalance (our own IP)</h3>
+    <p style="font-size:.9rem">Values rebalanced toward Crossplay's philosophy (common consonants cheap, K/V/W/Y expensive) — rewards placement over hoarding, and gives us our own distribution rather than Scrabble's trademarked one. <b>Counts stay at the standard 100-tile frequencies</b> (values changed, not counts). Tune in Phase 1.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Points</th><th>Letters (count)</th></tr></thead>
+      <tbody>
+        <tr><td><b>0</b></td><td>blank ×2</td></tr>
+        <tr><td><b>1</b></td><td>E×12, A×9, I×9, O×8, N×6, R×6, T×6, S×4, L×4, U×4 <span style="color:var(--muted)">(vowels + N R S T L)</span></td></tr>
+        <tr><td><b>2</b></td><td>D×4, G×3, C×2, M×2</td></tr>
+        <tr><td><b>3</b></td><td>B×2, P×2, H×2, F×2</td></tr>
+        <tr><td><b>5</b></td><td>K×1, V×2, W×2, Y×2 <span style="color:var(--muted)">(Crossplay's expensive band)</span></td></tr>
+        <tr><td><b>8</b></td><td>J×1, X×1</td></tr>
+        <tr><td><b>10</b></td><td>Q×1, Z×1</td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:.88rem;color:var(--muted)">100 tiles · 7-tile rack · 50-pt bingo bonus · premium squares apply before word multipliers · blanks score 0. <b style="color:var(--tw)">Fair endgame (from Crossplay):</b> when the bag empties, both sides get an <b>equal number of final turns</b> before the game ends — not Scrabble's "first to empty their rack" rule.</p>
+  </section>
+
+  <section id="feel">
+    <div class="h2mark"><span class="n">04</span><h2>The tile interaction spec</h2></div>
+    <p class="sub">The single most important section. This is where "clone" becomes "game." Every value is literal. Build and tune the tile-drop in isolation until it passes its checklist before any screen is assembled.</p>
+
+    <h3 class="blk">The tile lifecycle — states &amp; transitions</h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Event</th><th>Motion</th><th>Duration / curve</th><th>Haptic</th><th>Sound</th></tr></thead>
+      <tbody>
+        <tr><td><b>Pickup</b> (touch down)</td><td>scale 1.0→1.08, lift shadow y+6, z-raise</td><td>120ms · <code>cubic-bezier(.22,1,.36,1)</code></td><td>light impact</td><td>soft pickup, pitch ±4%</td></tr>
+        <tr><td><b>Drag</b></td><td>follows finger; tilt toward velocity, max 4°; ghost target cell highlights</td><td>realtime (UI thread)</td><td>—</td><td>—</td></tr>
+        <tr><td><b>Snap</b> to valid cell</td><td>settle with squash: 1.08→0.96→1.0</td><td>90ms · spring <code>stiffness 180, damping 18</code></td><td>soft</td><td>wood click, pitch ±5%</td></tr>
+        <tr><td><b>Return</b> (invalid/cancel)</td><td>glides back to rack slot</td><td>200ms · <code>ease-in-out</code></td><td>—</td><td>soft whiff</td></tr>
+        <tr><td><b>Illegal word</b> on submit</td><td>placed tiles shake x±4px ×2, flash accent outline</td><td>300ms</td><td>error (double)</td><td>low buzz</td></tr>
+        <tr><td><b>Commit</b> (legal word)</td><td>tiles pulse-flip in play order, 40ms stagger; cell locks to board color</td><td>per-tile 160ms</td><td>medium on last</td><td>ascending ticks</td></tr>
+        <tr><td><b>Score</b> reveal</td><td>chip rises from word centroid; number counts up 0→N</td><td>400ms · ease-out count-up</td><td>—</td><td>coin-ish, single</td></tr>
+        <tr><td><b>Bingo</b> (all 7)</td><td>brief particle bloom from word + accent banner "+50"</td><td>≤700ms, skippable</td><td>heavy</td><td>celebratory sting</td></tr>
+        <tr><td><b>Rack refill</b></td><td>new tiles slide up from bag corner into empty slots</td><td>60ms stagger · ease-out</td><td>—</td><td>light shuffle</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="blk">Rules the feel must respect</h3>
+    <ul>
+      <li>All animation runs on the <b>UI thread</b> (Reanimated worklets / Skia) — never drop below 60fps during drag.</li>
+      <li>Every effect increases <b>legibility</b> of game state. If an effect hides what happened, cut it.</li>
+      <li><code>prefers-reduced-motion</code> ⇒ replace all transforms with 1-frame cross-fades; keep haptics + sound.</li>
+      <li>Sound + haptics are independently toggleable; pitch is randomized so repeats never feel canned.</li>
+      <li>Celebration is <b>brief and skippable</b> — a tap dismisses instantly (NYT restraint).</li>
+    </ul>
+    <div class="callout"><h3>Feel acceptance test</h3><p>Record a 10-second screen capture of: pick up a tile → drag → snap → submit a bingo. It passes when (1) drag never stutters, (2) the snap reads as physical (squash present), (3) haptic fires within 16ms of visual snap, (4) the bingo celebration is under 700ms and dismissable. If any fail, iterate — do not proceed to screen assembly.</p></div>
+  </section>
+
+  <section id="screens">
+    <div class="h2mark"><span class="n">05</span><h2>Screens — behavior &amp; acceptance</h2></div>
+    <p class="sub">Five screens ship in v1. Each is specified by layout, behavior, and a pass condition.</p>
+    <div class="cards">
+      <div class="card" style="--accent:var(--tl)"><span class="tag">Screen · Home</span><h3>Daily hub</h3>
+        <p><b>Layout:</b> wordmark, today's date, a single primary "Play today's puzzle" card, secondary tiles for Classic (vs bot) and Solo puzzle, current streak in the corner.</p>
+        <p><b>Behavior:</b> resumes an in-progress game if one exists; otherwise starts fresh. No login. Deep-linkable to the daily.</p>
+        <div class="call"><b>Pass</b> Cold-open to interactive Home in under 1s; streak reflects local history.</div></div>
+
+      <div class="card" style="--accent:var(--tw)"><span class="tag">Screen · Board</span><h3>The game</h3>
+        <p><b>Layout:</b> 15×15 board (fits width, premium squares subtly colored per tokens), rack of 7 below, controls: Shuffle, Recall, Swap, Submit, Pass. Score header: you vs. bot, tiles-in-bag count.</p>
+        <p><b>Behavior:</b> full §04 interaction spec. Real-time move validity (Submit disabled until a legal placement exists). Bot plays with a visible "thinking" beat (≥400ms even if instant) then animates its word in.</p>
+        <div class="call"><b>Pass</b> A complete game can be played start→finish with correct scoring and no illegal move accepted.</div></div>
+
+      <div class="card" style="--accent:var(--dw)"><span class="tag">Screen · Analysis — the marquee</span><h3>ScawBot review (à la CrossBot)</h3>
+        <p><b>Layout:</b> a full-game timeline of your moves; per turn shows your play, the <b>best available play</b> (mini-board overlay + score), and the delta. Two headline ratings for the game: <b>Strategy</b> (how close your plays were to optimal) and <b>Luck</b> (tile draw quality vs. average).</p>
+        <p><b>Behavior:</b> replays the recorded <code>GameState.history</code>, re-running <code>bestMove</code> at each position. Strategy = mean(yourScore / bestScore); Luck = your draw's expected value vs. the distribution mean. Surfaces your single best word and your biggest miss. This is inherently single-player and is the feature that makes v1 worth opening without an opponent.</p>
+        <div class="call"><b>Pass</b> Best play per turn is provably the top-scoring legal move; Strategy/Luck numbers reconcile with the stored history on replay.</div></div>
+
+      <div class="card" style="--accent:var(--ok)"><span class="tag">Screen · Stats</span><h3>Streaks &amp; history</h3>
+        <p><b>Layout:</b> NYT-style: current streak, max streak, games played, win %, best word, a distribution/graph. Big serif numbers.</p>
+        <p><b>Behavior:</b> derived entirely from local persisted results; shareable summary (text, no image needed for v1).</p>
+        <div class="call"><b>Pass</b> Numbers reconcile exactly with stored game history.</div></div>
+
+      <div class="card" style="--accent:var(--muted)"><span class="tag">Screen · Settings</span><h3>Controls</h3>
+        <p><b>Layout:</b> sound, haptics, reduced-motion override, theme (auto/light/dark), difficulty default, cosmetics (tile skin scaffold).</p>
+        <div class="call"><b>Pass</b> Every toggle persists and takes effect immediately.</div></div>
+    </div>
+  </section>
+
+  <section id="arch">
+    <div class="h2mark"><span class="n">06</span><h2>Architecture &amp; file tree</h2></div>
+    <p class="sub">Pure-logic core in portable TypeScript (works in the web prototype and in RN unchanged); render/feel layer swappable.</p>
+    <pre>scawble/
+├─ packages/
+│  ├─ <b>engine/</b>            <span class="c">pure TS, zero deps, fully unit-tested</span>
+│  │  ├─ board.ts        <span class="c">grid, premium squares, placement legality</span>
+│  │  ├─ bag.ts          <span class="c">distribution, seeded draw (see §07 daily)</span>
+│  │  ├─ score.ts        <span class="c">word + cross-word scoring, bingo bonus</span>
+│  │  ├─ rules.ts        <span class="c">connectivity, first-move-center, turn flow</span>
+│  │  └─ state.ts        <span class="c">GameState reducer: applyMove/swap/pass</span>
+│  ├─ <b>lexicon/</b>           <span class="c">swappable word source</span>
+│  │  ├─ dawg.ts         <span class="c">build + isWord() lookup</span>
+│  │  ├─ enable.dawg     <span class="c">public-domain list, packed</span>
+│  │  └─ index.ts        <span class="c">Lexicon interface (drop-in licensed list later)</span>
+│  ├─ <b>ai/</b>                <span class="c">move generation + evaluation</span>
+│  │  ├─ gaddag.ts       <span class="c">build from lexicon</span>
+│  │  ├─ generate.ts     <span class="c">all legal moves for rack+board</span>
+│  │  ├─ evaluate.ts     <span class="c">score + leave value</span>
+│  │  └─ bot.ts          <span class="c">difficulty tiers → chosen move</span>
+│  └─ <b>feel/</b>              <span class="c">reusable interaction primitives (§04)</span>
+│     ├─ tile.tsx        <span class="c">draggable tile, springs, squash</span>
+│     ├─ haptics.ts  sound.ts  particles.tsx
+│     └─ curves.ts       <span class="c">the literal easings/durations from §04</span>
+├─ apps/
+│  ├─ <b>prototype/</b>         <span class="c">web (Canvas/Pixi) — validate feel first</span>
+│  └─ <b>mobile/</b>            <span class="c">React Native + Skia + Reanimated (ship)</span>
+│     ├─ screens/  (Home, Board, Analysis, Stats, Settings)
+│     ├─ persistence.ts  <span class="c">local store: results, streak, settings</span>
+│     └─ daily.ts        <span class="c">date→seed puzzle</span>
+└─ tokens.ts             <span class="c">§03, imported everywhere</span></pre>
+  </section>
+
+  <section id="models">
+    <div class="h2mark"><span class="n">07</span><h2>Data models &amp; core contracts</h2></div>
+    <p class="sub">These interfaces are the API surface between modules. Implement to them exactly.</p>
+    <pre><span class="k">type</span> <span class="t">Letter</span> = <span class="s">'A'</span>..<span class="s">'Z'</span>; <span class="k">type</span> <span class="t">Blank</span> = <span class="s">'_'</span>;
+<span class="k">interface</span> <span class="t">Tile</span>   { id: string; letter: Letter | Blank; value: number; assigned?: Letter } <span class="c">// blank's chosen letter</span>
+<span class="k">interface</span> <span class="t">Cell</span>   { row: number; col: number; premium?: <span class="s">'DL'|'TL'|'DW'|'TW'|'★'</span>; tile?: Tile }
+<span class="k">interface</span> <span class="t">Placement</span> { tile: Tile; row: number; col: number }
+<span class="k">interface</span> <span class="t">Move</span>   { placements: Placement[]; words: string[]; score: number; isBingo: boolean }
+
+<span class="k">interface</span> <span class="t">GameState</span> {
+  board: Cell[15][15]; bag: Tile[]; racks: { player: Tile[]; bot: Tile[] };
+  scores: { player: number; bot: number }; turn: <span class="s">'player'|'bot'</span>;
+  history: Move[]; seed: string; over: boolean;
+}
+
+<span class="c">// engine</span>
+legalPlacements(state, rack): Placement[][]
+scoreMove(board, placements): { score, words, isBingo }
+applyMove(state, move): GameState        <span class="c">// pure, returns next state</span>
+
+<span class="c">// lexicon (swappable)</span>
+<span class="k">interface</span> <span class="t">Lexicon</span> { isWord(w: string): boolean; size: number; name: string }
+
+<span class="c">// ai</span>
+generateMoves(state, rack): Move[]                    <span class="c">// GADDAG, all legal, ranked by score</span>
+chooseMove(moves, difficulty): Move                   <span class="c">// tier picks from ranked list</span>
+bestMove(state, rack): Move                           <span class="c">// for Analysis screen</span>
+
+<span class="c">// daily determinism</span>
+seedForDate(date): string                             <span class="c">// same board+draw for everyone that day</span></pre>
+    <div class="note"><p><b>Determinism.</b> Bag shuffle and blank-selection are driven by <code>seedForDate</code> so the Daily is identical for every player and replayable. Classic mode uses a random seed.</p></div>
+  </section>
+
+  <section id="ai">
+    <div class="h2mark"><span class="n">08</span><h2>AI opponent — spec</h2></div>
+    <div class="kv">
+      <dt>Generator</dt><dd>GADDAG built from the active lexicon (Gordon 1994). Enumerates every legal move for a rack+board in &lt;50ms.</dd>
+      <dt>Evaluation</dt><dd><code>score + leaveValue(remainingRack)</code>. Leave values reward retaining letters likely to form bingos (borrow Quackle's table approach).</dd>
+      <dt>Tiers</dt><dd><b>Casual</b>: pick from top 40–70% band + noise. <b>Skilled</b>: top ~15%. <b>Expert</b>: best static eval. <b>Brutal</b>: best eval + 2-ply simulation (~200 rollouts).</dd>
+      <dt>Timing</dt><dd>Always show ≥400ms "thinking" beat so instant moves still feel deliberate; hard-cap 1.5s.</dd>
+      <dt>Determinism</dt><dd>Bot RNG seeded from game seed + turn index for reproducible Dailies.</dd>
+    </div>
+    <p style="font-size:.88rem;color:var(--muted)">Refs: <a href="https://ericsink.com/downloads/faster-scrabble-gordon.pdf">Gordon 1994 (GADDAG, PDF)</a> · <a href="https://github.com/quackle/quackle">Quackle (BSD)</a> · <a href="https://people.csail.mit.edu/jasonkb/quackle/doc/how_quackle_plays_scrabble.html">How Quackle plays</a></p>
+  </section>
+
+  <section id="content">
+    <div class="h2mark"><span class="n">09</span><h2>Content &amp; modes</h2></div>
+    <div class="tier"><span class="chip" style="border-color:var(--tw);color:var(--tw)">Daily</span><ul>
+      <li><b>One puzzle/day</b>, seeded by date — identical board + tile draw for everyone.</li>
+      <li>Goal: beat the bot (Expert) and/or beat the "par" score. Feeds the streak.</li>
+    </ul></div>
+    <div class="tier"><span class="chip" style="border-color:var(--tl);color:var(--tl)">Classic</span><ul>
+      <li>Full game vs. bot at chosen difficulty, random seed, replayable freely.</li>
+    </ul></div>
+    <div class="tier"><span class="chip" style="border-color:var(--dw);color:var(--dw)">Solo puzzle</span><ul>
+      <li><b>"Find the best word"</b> — given a fixed rack + board, score as high as you can in one move. A bite-sized brain-teaser using <code>bestMove</code> as the target.</li>
+    </ul></div>
+  </section>
+
+  <section id="recon">
+    <div class="h2mark"><span class="n">10</span><h2>Recon — the solved problems we build on</h2></div>
+    <div class="cards">
+      <div class="card" style="--accent:var(--ok)"><span class="tag">Dictionary</span><h3>ENABLE (public domain)</h3>
+        <p>Official lists (NWL2023 / Collins) are licensed IP under active enforcement. Ship <b>ENABLE</b> (Alan Beale, public domain); keep the <code>Lexicon</code> interface so a licensed list can drop in for any future commercial release.</p>
+        <div class="refs"><a href="https://github.com/en-wl/wordlist">ENABLE / wordlist</a> · <a href="https://scrabbleplayers.org/w/NWL2023">NWL2023 licensing</a></div></div>
+      <div class="card" style="--accent:var(--tl)"><span class="tag">Data structures</span><h3>DAWG for lookup, GADDAG for the bot</h3>
+        <p>DAWG = compressed trie, microsecond <code>isWord</code>, ~hundreds of KB. GADDAG = bidirectional variant for full move generation. Both well-documented and buildable dependency-free.</p>
+        <div class="refs"><a href="https://en.wikipedia.org/wiki/GADDAG">GADDAG</a> · <a href="https://ericsink.com/downloads/faster-scrabble-gordon.pdf">Gordon 1994</a></div></div>
+    </div>
+  </section>
+
+  <section id="dod">
+    <div class="h2mark"><span class="n">11</span><h2>Definition of Done</h2></div>
+    <p class="sub">v1 ships only when every box is objectively true. This is the loop's global success condition.</p>
+    <ul class="checklist">
+      <li><b>Engine</b> — unit tests cover scoring (incl. cross-words, premium stacking, bingo, blanks), connectivity, first-move-on-center; all pass.</li>
+      <li><b>Lexicon</b> — <code>isWord</code> matches the ENABLE list on a 1000-word sample; unknown words rejected.</li>
+      <li><b>AI</b> — <code>bestMove</code> proven optimal on ≥20 hand-checked positions; four tiers produce distinguishable strength over 100 sim games.</li>
+      <li><b>Feel</b> — the §04 acceptance test passes on device; 60fps held during drag; reduced-motion path verified.</li>
+      <li><b>Screens</b> — each of the five passes its stated condition; full game playable start→finish.</li>
+      <li><b>Daily</b> — same date yields identical puzzle across two fresh installs.</li>
+      <li><b>Persistence</b> — stats/streak survive app restart and reconcile with history.</li>
+      <li><b>A11y</b> — contrast ≥ WCAG AA, hit targets ≥ 44px, VoiceOver labels on controls.</li>
+      <li><b>Build</b> — runs on iOS device via TestFlight with no red-screen errors.</li>
+    </ul>
+  </section>
+
+  <section id="loop">
+    <div class="h2mark"><span class="n">12</span><h2>The autonomous build loop</h2></div>
+    <p class="sub">Execution order. Each phase has an <b>exit gate</b>; the loop does not advance until the gate passes. This is what makes "run it once" convergent.</p>
+
+    <div class="phase"><div class="when">Phase 1<span class="bar" style="background:var(--tl)"></span></div>
+      <div><h4>Engine + lexicon</h4><p>Implement <code>packages/engine</code> and <code>lexicon</code> against §07 contracts. Pack ENABLE into a DAWG.</p>
+      <div class="gate"><b>Gate:</b> engine unit tests green · <code>isWord</code> sample passes.</div></div></div>
+
+    <div class="phase"><div class="when">Phase 2<span class="bar" style="background:var(--dw)"></span></div>
+      <div><h4>AI</h4><p>GADDAG generator, evaluator, four tiers, <code>bestMove</code>.</p>
+      <div class="gate"><b>Gate:</b> best-move proven on 20 positions · tiers differ over 100 games.</div></div></div>
+
+    <div class="phase"><div class="when">Phase 3<span class="bar" style="background:var(--tw)"></span></div>
+      <div><h4>Feel prototype (web)</h4><p>Build the tile in <code>apps/prototype</code>; tune §04 curves until the feel acceptance test passes. <b>Gate is subjective-made-objective — iterate here.</b></p>
+      <div class="gate"><b>Gate:</b> §04 feel acceptance test passes on capture.</div></div></div>
+
+    <div class="phase"><div class="when">Phase 4<span class="bar" style="background:var(--ok)"></span></div>
+      <div><h4>Mobile assembly</h4><p>Port feel to RN+Skia; build the five screens (§05) wired to engine/AI; local persistence; daily seeding.</p>
+      <div class="gate"><b>Gate:</b> every screen's pass condition met · full game playable.</div></div></div>
+
+    <div class="phase"><div class="when">Phase 5<span class="bar" style="background:var(--muted)"></span></div>
+      <div><h4>Polish, a11y, ship</h4><p>Reduced-motion, VoiceOver, contrast, sound/haptic pass, TestFlight build.</p>
+      <div class="gate"><b>Gate:</b> full §11 Definition of Done checklist green.</div></div></div>
+  </section>
+
+  <section id="legal">
+    <div class="h2mark"><span class="n">13</span><h2>Legal guardrails</h2></div>
+    <ul>
+      <li><b>Name:</b> "Scrabble" is Hasbro/Mattel TM — market as <b>Scawble</b>, never as Scrabble.</li>
+      <li><b>Board art:</b> Scrabble's exact premium-square colors/layout are trade dress — we use our own palette (§03) and can vary the layout as a differentiator.</li>
+      <li><b>Word list:</b> ship public-domain ENABLE; keep it swappable.</li>
+    </ul>
+    <div class="refs"><a href="https://www.sitepoint.com/scrabulous-is-toast-did-hasbro-really-have-a-case/">Why clones survive (Scrabulous)</a> · <a href="https://slate.com/human-interest/2014/09/scrabble-copyright-dispute-hasbro-says-it-owns-the-scrabble-dictionary-players-beg-to-differ.html">Who owns the word list</a></div>
+  </section>
+
+  <section id="oq">
+    <div class="h2mark"><h2>Open questions before the loop runs</h2></div>
+    <ul class="oq">
+      <li style="opacity:.55"><b>Q1</b> <s>Right reference?</s> <span style="color:var(--ok);font-family:var(--mono);font-size:.72rem">✓ Resolved — NYT Crossplay (primary) + overall NYT Games polish (secondary).</span></li>
+      <li style="opacity:.55"><b>Q2</b> <s>Faithful vs. novel variant?</s> <span style="color:var(--ok);font-family:var(--mono);font-size:.72rem">✓ Resolved — Faithful + polish. Standard rules/board/tiles; differentiation is feel, the daily loop, and analysis.</span></li>
+      <li style="opacity:.55"><b>Q3</b> <s>Web prototype first vs. straight to RN?</s> <span style="color:var(--ok);font-family:var(--mono);font-size:.72rem">✓ Resolved — web prototype first (cheapest feel validation), then port to RN+Skia.</span></li>
+      <li><b>Q4</b> <span style="color:var(--warn);font-family:var(--mono);font-size:.72rem">⏸ Parked (liked) —</span> word definitions on tap, post-v1. Wiktionary is the open-licence source. Keep the lexicon module ready to attach a definitions map.</li>
+    </ul>
+  </section>
+
+  <footer>Scawble · Executable Build Spec v1.0 · feel is the product, the engine is a commodity · single-player, no live multiplayer.</footer>
+
+</div>

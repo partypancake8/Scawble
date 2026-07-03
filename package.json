@@ -1,0 +1,17 @@
+{
+  "name": "scawble",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A single-player tile word game matching the polish of NYT Crossplay.",
+  "scripts": {
+    "test": "node tests/engine.test.js && node tests/ai.test.js",
+    "smoke": "node tests/dom-smoke.mjs",
+    "build": "node scripts/build-standalone.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "linkedom": "^0.18.12"
+  }
+}

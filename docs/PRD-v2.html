@@ -1,0 +1,161 @@
+<title>Scawble — v2 PRD: Soft &amp; Cute + P1</title>
+<style>
+  :root{
+    --paper:#F3F1EA; --surface:#FCFBF7; --ink:#22262E; --ink-soft:#454C58;
+    --muted:#6B7280; --line:#E0DCCF; --line-soft:#ECE8DD;
+    --accent:#E4645A; --accent2:#2E8B84; --good:#2F8F63; --warn:#B4791E;
+    --tile:#F0E7D2; --tile-edge:#cdbf9d;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --maxw:60rem;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#14161C; --surface:#1C1F27; --ink:#ECEAE2; --ink-soft:#C3C6CE; --muted:#8A90A0;
+    --line:#2A2F3B; --line-soft:#232833; --accent:#F0776D; --accent2:#4FB4AC; --good:#4ECB9B;
+    --tile:#D9CFB4; --tile-edge:#b6a982;}}
+  :root[data-theme="light"]{--paper:#F3F1EA;--surface:#FCFBF7;--ink:#22262E;--ink-soft:#454C58;--muted:#6B7280;--line:#E0DCCF;--line-soft:#ECE8DD;--accent:#E4645A;--tile:#F0E7D2;--tile-edge:#cdbf9d;}
+  :root[data-theme="dark"]{--paper:#14161C;--surface:#1C1F27;--ink:#ECEAE2;--ink-soft:#C3C6CE;--muted:#8A90A0;--line:#2A2F3B;--line-soft:#232833;--accent:#F0776D;--tile:#D9CFB4;--tile-edge:#b6a982;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.62;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 1.5rem 5rem;}
+  .mast{padding:3.5rem 0 2rem;border-bottom:1px solid var(--line);}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 1.1rem;}
+  .tiles{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.2rem;}
+  .tile{position:relative;width:3rem;height:3rem;background:linear-gradient(155deg,#f6efdb,var(--tile));border:1px solid var(--tile-edge);border-radius:12px;color:#232323;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:1.6rem;box-shadow:0 2px 0 var(--tile-edge),0 4px 10px rgba(0,0,0,.14);}
+  .tile sub{position:absolute;right:.3rem;bottom:.16rem;font-family:var(--sans);font-weight:600;font-size:.55rem;color:#4a4a4a;}
+  h1{font-family:var(--serif);font-size:2rem;margin:.2rem 0;letter-spacing:-.01em;}
+  .lede{font-family:var(--serif);font-size:1.35rem;line-height:1.4;max-width:44ch;margin:.4rem 0 1.3rem;color:var(--ink);text-wrap:balance;}
+  .lede em{font-style:italic;color:var(--accent);}
+  .metarow{display:flex;flex-wrap:wrap;gap:1.4rem;font-family:var(--mono);font-size:.72rem;color:var(--muted);}
+  .metarow b{color:var(--ink-soft);font-weight:600;}
+  section{padding-top:3rem;}
+  h2{font-family:var(--serif);font-size:1.6rem;margin:0 0 .3rem;letter-spacing:-.01em;text-wrap:balance;}
+  .h2mark{display:flex;align-items:baseline;gap:.6rem;}
+  .h2mark .n{font-family:var(--mono);font-size:.78rem;color:var(--accent);font-weight:600;}
+  .sub{color:var(--muted);margin:.5rem 0 1.4rem;max-width:64ch;}
+  p{max-width:66ch;} a{color:var(--accent2);}
+  .cards{display:grid;gap:.9rem;}
+  .card{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:1.1rem 1.3rem;}
+  .card h3{font-family:var(--serif);font-size:1.15rem;margin:0 0 .3rem;}
+  .card .tag{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600;}
+  .card p{margin:.4rem 0;font-size:.95rem;}
+  .acc{margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--line);font-size:.88rem;color:var(--ink-soft);}
+  .acc b{color:var(--good);font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.4rem;}
+  pre{background:#1d2230;color:#d7dbe6;border-radius:12px;padding:1rem 1.2rem;overflow-x:auto;font-family:var(--mono);font-size:.8rem;line-height:1.6;}
+  pre .c{color:#7f8aa3;font-style:italic;} pre .k{color:#e0a35a;} pre .s{color:#83c9a8;}
+  .swatch{display:inline-block;width:1rem;height:1rem;border-radius:4px;vertical-align:middle;margin-right:.4rem;border:1px solid rgba(0,0,0,.15);}
+  .kv{display:grid;grid-template-columns:max-content 1fr;gap:.3rem 1rem;font-size:.9rem;margin:.5rem 0;}
+  .kv dt{font-family:var(--mono);font-size:.74rem;color:var(--accent2);} .kv dd{margin:0;color:var(--ink-soft);}
+  .checklist{list-style:none;padding:0;} .checklist li{position:relative;padding-left:1.8rem;margin:.45rem 0;}
+  .checklist li::before{content:"";position:absolute;left:0;top:.15rem;width:1.1rem;height:1.1rem;border:2px solid var(--good);border-radius:5px;}
+  .checklist li.done::after{content:"✓";position:absolute;left:.2rem;top:-.02rem;color:var(--good);font-weight:700;}
+  .phase{display:grid;grid-template-columns:6rem 1fr;gap:1rem;padding:.8rem 0;border-top:1px solid var(--line-soft);}
+  .phase:first-of-type{border-top:none;} .phase .when{font-family:var(--mono);font-size:.78rem;color:var(--accent);}
+  .phase h4{margin:0 0 .2rem;font-size:1rem;} .phase p{margin:.1rem 0;font-size:.88rem;color:var(--ink-soft);}
+  .note{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:12px;padding:.9rem 1.1rem;margin:1rem 0;font-size:.92rem;}
+  footer{margin-top:3rem;padding-top:1.3rem;border-top:1px solid var(--line);color:var(--muted);font-family:var(--mono);font-size:.72rem;}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <p class="eyebrow">Scawble · v2 PRD · Redesign &amp; P1 pass</p>
+    <div class="tiles" aria-label="Scawble">
+      <div class="tile">S<sub>1</sub></div><div class="tile">C<sub>2</sub></div><div class="tile">A<sub>1</sub></div><div class="tile">W<sub>5</sub></div><div class="tile">B<sub>3</sub></div><div class="tile">L<sub>1</sub></div><div class="tile">E<sub>1</sub></div>
+    </div>
+    <p class="lede">Turn a working Scrabble clone into a <em>soft, cute, polished</em> little game — and add the whole P1 feature set.</p>
+    <div class="metarow">
+      <span><b>Direction</b> Soft &amp; cute ✓ chosen</span>
+      <span><b>Font</b> Fredoka (embedded)</span>
+      <span><b>Scope</b> Visual redesign + P1</span>
+      <span><b>Base</b> v1 PRD (engine/AI unchanged)</span>
+    </div>
+  </header>
+
+  <section id="status">
+    <div class="h2mark"><span class="n">00</span><h2>Where we are (recorded)</h2></div>
+    <p class="sub">Snapshot at the start of this pass. All logic below is built and test-verified; this pass is skin + UX, not engine.</p>
+    <ul class="checklist">
+      <li class="done"><b>Engine</b> — board, rebalanced tiles, scoring (premiums, cross-words, bingo, blanks), Crossplay fair-endgame. <em>28 tests green.</em></li>
+      <li class="done"><b>AI</b> — trie move generator, 4 difficulty tiers, <code>bestMove</code>, live <code>preview</code>. <em>16 tests green.</em></li>
+      <li class="done"><b>Dictionary</b> — full ENABLE (172,823 words); build ~160ms, bot moves 15–40ms.</li>
+      <li class="done"><b>Web app</b> — Home/Daily, Board, Analysis (Strategy/Luck), local streak; drag-drop tiles with snap, sound, haptics, score count-up, bingo burst, reduced-motion, live green valid-word + score badge. <em>DOM smoke green.</em></li>
+    </ul>
+    <p style="font-size:.9rem;color:var(--muted)">Repo: <code>~/Active/Projects/scawble</code> · Node local at <code>~/.local/bin</code> · <code>npm test</code> / <code>npm run smoke</code> / <code>npm run build</code> / <code>npm run serve</code>.</p>
+    <div class="note"><b>The problem this pass fixes:</b> v1 looked like Scrabble/Words-With-Friends — wooden tiles, brown edges, serif letters, the exact Scrabble premium colors. Competent, but not the cute, modern polish the product wants.</div>
+  </section>
+
+  <section id="design">
+    <div class="h2mark"><span class="n">01</span><h2>Design system v2 — Soft &amp; Cute</h2></div>
+    <p class="sub">Every visual token, literal. Flat/soft-3D, rounded, pastel, friendly rounded type.</p>
+    <h3 style="font-family:var(--serif)">Palette</h3>
+    <div class="kv">
+      <dt>paper</dt><dd><span class="swatch" style="background:#F1F5EE"></span>#F1F5EE mint-cream · dark #16201F</dd>
+      <dt>surface</dt><dd><span class="swatch" style="background:#fff"></span>#FFFFFF card · dark #1E2A28</dd>
+      <dt>ink</dt><dd><span class="swatch" style="background:#33383A"></span>#33383A soft charcoal (never pure black) · dark #ECEFEA</dd>
+      <dt>accent</dt><dd><span class="swatch" style="background:#FF7A6B"></span>#FF7A6B coral — buttons, active turn, submit</dd>
+      <dt>good</dt><dd><span class="swatch" style="background:#3DBB8B"></span>#3DBB8B soft green — valid word</dd>
+      <dt>tile</dt><dd><span class="swatch" style="background:#FFFDF6"></span>#FFFDF6 warm-white face, dark ink, soft bottom "lip", no wood, no border</dd>
+      <dt>premiums</dt><dd>pastel: DL <span class="swatch" style="background:#CDE8F2"></span> TL <span class="swatch" style="background:#A6D8EA"></span> DW <span class="swatch" style="background:#FBD9D3"></span> TW <span class="swatch" style="background:#FBC4B4"></span> — soft tints, not saturated</dd>
+    </div>
+    <h3 style="font-family:var(--serif)">Type &amp; shape</h3>
+    <div class="kv">
+      <dt>font</dt><dd><b>Fredoka</b> (rounded geometric sans) embedded as woff2 data-URI — weights 400/600. Replaces the book serif.</dd>
+      <dt>tiles</dt><dd>border-radius ~26%, big rounded letter, tiny corner value, one soft shadow + lip. Board cells rounded ~22%.</dd>
+      <dt>board</dt><dd>rounded card (18px), soft shadow, gentle cell separation — no grey gridlines.</dd>
+      <dt>buttons</dt><dd>rounded pills, coral primary, springy press (scale .96).</dd>
+      <dt>motion</dt><dd>bouncier settle, cuter score pop, tuned confetti; all respect reduced-motion.</dd>
+    </div>
+    <div class="acc"><b>Accept</b> Side-by-side with v1, a stranger calls it "a cute mobile game," not "Scrabble." Tiles no longer read as wooden.</div>
+  </section>
+
+  <section id="p1">
+    <div class="h2mark"><span class="n">02</span><h2>P1 features</h2></div>
+    <p class="sub">All seven. Each specified by behavior + an acceptance check. Logic reuses the tested controller.</p>
+    <div class="cards">
+      <div class="card"><span class="tag">#7 · you asked</span><h3>Last move, per player</h3>
+        <p>Under each score, a live line: <code>QUARTZ +32</code> / <code>AN +2</code> (or "passed" / "swapped"). Updates every turn from <code>state.history</code>.</p>
+        <div class="acc"><b>Accept</b> After each turn, both lines reflect that side's most recent action + points.</div></div>
+      <div class="card"><span class="tag">#8</span><h3>Move log</h3>
+        <p>A toggle opens a scrollable running history of every turn (both players): word/action + score, newest first.</p>
+        <div class="acc"><b>Accept</b> Log entries match <code>state.history</code> in order and count.</div></div>
+      <div class="card"><span class="tag">#9 · a11y</span><h3>Blank-tile picker</h3>
+        <p>Replaces the raw <code>prompt()</code>. Dropping a blank opens a rounded A–Z chooser overlay; pick assigns the letter. Keyboard + tap.</p>
+        <div class="acc"><b>Accept</b> A blank can be assigned any A–Z, scores 0, and shows its chosen letter.</div></div>
+      <div class="card"><span class="tag">#10</span><h3>Hint</h3>
+        <p>A Hint button calls <code>playerBest()</code> and shows the suggested word as ghost tiles on the board + "Try QUARTZ (+32)". Clears on next action.</p>
+        <div class="acc"><b>Accept</b> Ghost matches the true best legal move for the position.</div></div>
+      <div class="card"><span class="tag">#11 · a11y/mobile</span><h3>Tap-to-place</h3>
+        <p>Tap a rack tile to select it, tap an empty cell to place it — alongside drag. Tap a placed draft tile to recall it.</p>
+        <div class="acc"><b>Accept</b> A full word can be built with taps only, no dragging.</div></div>
+      <div class="card"><span class="tag">#12</span><h3>Settings screen</h3>
+        <p>Toggles for sound, haptics, reduced-motion (auto/on/off), theme (auto/light/dark), default difficulty. Persist to localStorage; apply immediately.</p>
+        <div class="acc"><b>Accept</b> Each toggle persists across reload and takes effect at once.</div></div>
+      <div class="card"><span class="tag">#13</span><h3>Swap selected tiles</h3>
+        <p>Swap enters a select mode: tap rack tiles to mark, confirm to exchange just those (uses the turn). Replaces the "swap whole rack" stub.</p>
+        <div class="acc"><b>Accept</b> Only the chosen tiles are exchanged; illegal when the bag has &lt; that many tiles.</div></div>
+    </div>
+  </section>
+
+  <section id="order">
+    <div class="h2mark"><span class="n">03</span><h2>Build order &amp; gates</h2></div>
+    <div class="phase"><div class="when">1</div><div><h4>Type + tokens</h4><p>Embed Fredoka → fonts.css; rewrite the palette/tokens.</p></div></div>
+    <div class="phase"><div class="when">2</div><div><h4>Reskin core</h4><p>Tiles, board, premiums, rack, buttons, HUD → soft &amp; cute. <em>Gate: no wooden/Scrabble cues remain.</em></p></div></div>
+    <div class="phase"><div class="when">3</div><div><h4>P1 features</h4><p>Last-move HUD, move log, blank picker, hint, tap-to-place, settings, swap-select.</p></div></div>
+    <div class="phase"><div class="when">4</div><div><h4>Verify + ship</h4><p><code>npm test</code>, extended <code>npm run smoke</code> (exercise new UI), rebuild standalone. <em>Gate: all green, no runtime errors.</em></p></div></div>
+  </section>
+
+  <section id="verify">
+    <div class="h2mark"><span class="n">04</span><h2>Definition of done</h2></div>
+    <ul class="checklist">
+      <li class="done"><b>Look:</b> cute/rounded/pastel; tiles not wooden; Fredoka embedded &amp; rendering.</li>
+      <li class="done"><b>#7–#13</b> all seven built; each meets its acceptance check (verified in smoke).</li>
+      <li class="done"><b>Regression:</b> engine (28) + AI (16) tests green; full game playable; analysis + streak intact.</li>
+      <li class="done"><b>Smoke:</b> headless boot + tap-to-place + hint + settings + log + turns — zero runtime errors.</li>
+      <li class="done"><b>Standalone:</b> <code>scawble.html</code> rebuilt (2.0 MB), font embedded, self-contained, plays from a file.</li>
+    </ul>
+    <p style="margin-top:1rem;font-family:var(--mono);font-size:.8rem;color:var(--good)">✓ Shipped — this pass is complete.</p>
+  </section>
+
+  <footer>Scawble · v2 PRD (Soft &amp; Cute + P1) · builds on v1 · engine/AI unchanged · feel &amp; UX pass.</footer>
+</div>
