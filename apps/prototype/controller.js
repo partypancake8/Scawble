@@ -28,12 +28,19 @@ export function createGame(words, { seed = 'default', difficulty = 'expert' } = 
     /** Best move available to the player right now. */
     playerBest() { return bestMove(state.board, state.racks.player, trie, lexicon); },
 
-    /** Dry-run a set of placements (no commit): live legality + score preview. */
+    /** Dry-run a set of placements (no commit): live legality + score preview.
+     *  `cells` = every cell of every word formed (incl. pre-existing letters). */
     preview(placements) {
       const v = validate(state.board, placements, lexicon);
       if (!v.ok) return { ok: false, error: v.error };
       const s = scoreMove(state.board, placements);
-      return { ok: true, score: s.score, words: s.words, isBingo: s.isBingo };
+      const cells = [];
+      const seen = new Set();
+      for (const w of v.words) for (const c of w.cells) {
+        const k = c.row + ',' + c.col;
+        if (!seen.has(k)) { seen.add(k); cells.push({ row: c.row, col: c.col }); }
+      }
+      return { ok: true, score: s.score, words: s.words, isBingo: s.isBingo, cells };
     },
 
     /** Attempt the player's move. Returns { ok, error?, move? }. */

@@ -37,15 +37,19 @@ export const DIFFICULTY = ['casual', 'skilled', 'expert', 'brutal'];
 export function chooseMove(board, rack, trie, lexicon, difficulty = 'expert', rng = Math.random) {
   const moves = generateMoves(board, rack, trie, lexicon);
   if (moves.length === 0) return null;
-  const ranked = rankMoves(moves, rack);
+  const ranked = rankMoves(moves, rack); // index 0 = best move, worse toward the end
   const n = ranked.length;
+  // Each tier picks how far down the ranked list to play (a % of the list length):
+  //   casual  → a mid-pack move: uniformly from the 40%–70% band (deliberately not best)
+  //   skilled → a near-top move: uniformly from the top 15%
+  //   expert/brutal → index 0, the best move (brutal will add 2-ply look-ahead later)
   let idx = 0;
   if (difficulty === 'casual') {
     const lo = Math.floor(n * 0.4), hi = Math.max(lo, Math.floor(n * 0.7));
     idx = lo + Math.floor(rng() * (hi - lo + 1));
   } else if (difficulty === 'skilled') {
     idx = Math.floor(rng() * Math.max(1, Math.ceil(n * 0.15)));
-  } // expert & brutal => idx 0 (best). brutal will get 2-ply sim later.
+  }
   return ranked[Math.min(idx, n - 1)];
 }
 

@@ -1,4 +1,6 @@
-// Button.js — the chunky rounded button. Optional icon (row or stacked over label).
+// Button.js — the chunky rounded button. Optional icon (row, or `stack`ed over label).
+// variant: 'primary'/'submit' = filled accent + white text; 'ghost' = transparent;
+// 'normal' (default) = surface with a lip. `small` shrinks padding/type.
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { FONT_SEMI } from '../theme';
@@ -42,6 +44,8 @@ export default function Button({ title, onPress, variant = 'normal', disabled, t
           paddingVertical: stack ? 8 : small ? 10 : 13,
           opacity: disabled ? 0.4 : 1,
         },
+        // MUST be a real transform array or `null` — never `{transform: undefined}`,
+        // which iOS's native transform validation rejects → render crash on press.
         pressed && !disabled ? { transform: [{ translateY: 1 }, { scale: 0.98 }] } : null,
         style,
       ]}

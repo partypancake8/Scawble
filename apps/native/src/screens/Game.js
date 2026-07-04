@@ -3,8 +3,9 @@
 // Game logic stays in the tested controller; this is the view + interaction.
 import React, { useState, useRef, useReducer, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, Animated, PanResponder, StyleSheet, useWindowDimensions, Platform, Alert, ScrollView } from 'react-native';
-import Board, { PAD, GAP, boardWidth } from '../ui/Board';
-import ZoomableBoard from '../ui/ZoomableBoard';
+import SkiaBoard from '../ui/SkiaBoard';
+import { PAD, GAP, boardWidth } from '../core/board/geometry.js';
+import { decideDrop, cellAtScreen, pinchView, panView } from '../core/board/interaction.js';
 import Rack from '../ui/Rack';
 import Tile from '../ui/Tile';
 import { letterOf, VALUE } from '../core/engine/tiles.js';
@@ -28,7 +29,11 @@ function IconBtn({ icon, onPress, theme, testID }) {
 
 export default function Game({ game, settings, theme, onExit, onOpenSettings, onGameOver }) {
   const { width } = useWindowDimensions();
-  const [, bump] = useReducer((x) => x + 1, 0);
+  // `rev`/`bump`: the controller MUTATES game.state in place (commit, bot move), so
+  // React never sees a prop change. bump() after each move increments `rev`, and
+  // `rev` is passed to SkiaBoard so its scene useMemo re-runs (busts the memo).
+  // Without this the board wouldn't repaint after a committed move.
+  const [rev, bump] = useReducer((x) => x + 1, 0);
 
   const [draft, setDraft] = useState([]);
   const [rackOrder, setRackOrder] = useState(() => game.state.racks.player.map((t) => t.id));
@@ -39,6 +44,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   const [busy, setBusy] = useState(false);
   const [pendingBlank, setPendingBlank] = useState(null);
   const [showLog, setShowLog] = useState(false);
+  const [areaH, setAreaH] = useState(0); // measured height of the board area → tall canvas
   const [evt, setEvt] = useState({ text: 'Your move — build off the center ✦', err: false });
   const timerRef = useRef(null);
   const shakeX = useRef(new Animated.Value(0)).current;
@@ -55,8 +61,16 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   // ---- sizing ----
   const boardMax = Math.min(width - 8, 600);
   const cell = Math.floor((boardMax - 2 * PAD - 14 * GAP) / 15);
-  const rackSize = Math.min(Math.floor((Math.min(width, 600) - 16 - 6 * 7) / 7), 52);
-  const SS = 2; // supersample: render the board at 2x so zoom stays crisp
+  // rack must fit 7 tiles + 6 gaps(6) + rack padding(2×8) + dock padding(2×10)
+  // inside the screen, or the tiles run off the edges. Cap so it isn't huge.
+  const rackSize = Math.min(Math.floor((Math.min(width, 600) - 72) / 7), 50);
+
+  // The board renders into a canvas as TALL as the board area, so pinch-zoom can
+  // grow the board into the space above/below (not just the square footprint).
+  // The board sits centred in that canvas; hit-testing uses the same layout.
+  const size = boardWidth(cell);
+  const canvasH = areaH > size ? areaH : size;
+  const boardLayout = { cx: size / 2, cy: canvasH / 2, ox: 0, oy: (canvasH - size) / 2 };
 
   // ---- derived: rack slots ----
   const byId = new Map(game.state.racks.player.map((t) => [t.id, t]));
@@ -74,7 +88,9 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   );
   const pv = draft.length ? game.preview(placements) : null;
   const validNow = !!(pv && pv.ok);
-  const validSet = validNow ? new Set(draft.map((d) => key(d.row, d.col))) : null;
+  // outline the FULL word(s) — pv.cells includes pre-existing committed letters,
+  // not just the tiles placed this turn.
+  const validSet = validNow ? new Set((pv.cells || []).map((c) => key(c.row, c.col))) : null;
 
   const isPlayer = game.state.turn === 'player' && !game.state.over;
   const myTurn = isPlayer && !busy && !swapMode;
@@ -129,49 +145,81 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   }
   function onDraftPress(r, c) { setDraft((d) => d.filter((x) => !(x.row === r && x.col === c))); clearHint(); }
 
-  // ---- drag & drop (works for rack tiles AND placed draft tiles) ----
+  // ---- drag & drop + zoom/pan (one PanResponder over the Skia board) ----
   const boardBoxRef = useRef(null);
   const screenRef = useRef(null);
-  const boardTf = useRef({ scale: 1, tx: 0, ty: 0 }).current;
   const dragXY = useRef(new Animated.ValueXY()).current;
   const dragState = useRef({ moved: false, rect: null, off: { x: 0, y: 0 } }).current;
   const [dragTile, setDragTile] = useState(null);
   const pans = useRef({}).current;
+  // Live-state snapshot read by the once-created PanResponders (which capture a
+  // stale render's closure). Mirror of the `hRef` pattern below: refreshed every
+  // render so the responders always see current turn/draft/cell/layout.
   const latest = useRef({});
-  latest.current = { isPlayer, busy, swapMode, cell, draft };
+  latest.current = { isPlayer, busy, swapMode, cell, draft, layout: boardLayout };
 
-  // which board cell is under a screen point (accounts for pinch zoom/pan)
-  function cellAt(px, py) {
-    const rect = dragState.rect; if (!rect) return null;
-    const c = latest.current.cell, sizePx = boardWidth(c), center = sizePx / 2;
-    const lx = px - rect.x, ly = py - rect.y;
-    if (lx < 0 || ly < 0 || lx > rect.w || ly > rect.h) return null; // off the board
-    const contentX = center + (lx - center - boardTf.tx) / boardTf.scale;
-    const contentY = center + (ly - center - boardTf.ty) / boardTf.scale;
-    const col = Math.floor((contentX - PAD) / (c + GAP));
-    const row = Math.floor((contentY - PAD) / (c + GAP));
-    if (row < 0 || row > 14 || col < 0 || col > 14) return null;
-    return { row, col };
-  }
-  const cellFree = (row, col, exceptId) =>
-    !game.state.board[row][col].tile &&
-    !latest.current.draft.some((d) => d.row === row && d.col === col && d.tile.id !== exceptId);
+  // Live board zoom/pan. `view` drives the Skia render; `viewRef` is the
+  // synchronous source of truth read during a gesture and by hit-testing, so
+  // what you see and what you touch never diverge (the old bug shot tiles to
+  // random cells because it hit-tested against a stale transform object).
+  const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 });
+  const viewRef = useRef(view);
+  const applyView = useCallback((v) => { viewRef.current = v; setView(v); }, []);
 
+  // ease the board back to rest (identity) after a pan/pinch that ended near 1x
+  const easeToRest = useCallback(() => {
+    if (reduced) { applyView({ scale: 1, tx: 0, ty: 0 }); return; }
+    const from = { ...viewRef.current };
+    const t0 = Date.now();
+    const step = () => {
+      const p = Math.min(1, (Date.now() - t0) / 180);
+      const e = 1 - Math.pow(1 - p, 3);
+      applyView({ scale: from.scale + (1 - from.scale) * e, tx: from.tx * (1 - e), ty: from.ty * (1 - e) });
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [reduced, applyView]);
+
+  // is (row,col) blocked for this drag? a committed tile, or another draft tile —
+  // never the dragged tile's own current cell (so it can be dropped back in place).
+  const occupiedFor = (exceptId) => (row, col) =>
+    !!game.state.board[row][col].tile ||
+    latest.current.draft.some((d) => d.row === row && d.col === col && d.tile.id !== exceptId);
+
+  // Drop resolution is pure + unit-tested (decideDrop): zoom/pan-aware screen→cell
+  // hit-test + the place/move/recall/none rulebook (incl. the snap to a near slot).
   function handleDrop(tile, px, py) {
-    const src = latest.current.draft.find((d) => d.tile.id === tile.id); // was it already on the board?
-    const target = cellAt(px, py);
-    if (src) {
-      if (!target) { setDraft((d) => d.filter((x) => x.tile.id !== tile.id)); H.tapLight(); }            // off board → back to rack
-      else if (cellFree(target.row, target.col, tile.id)) {                                              // empty → move it there
-        setDraft((d) => d.map((x) => (x.tile.id === tile.id ? { ...x, row: target.row, col: target.col } : x)));
-        H.tapMedium();
-      }                                                                                                  // onto a tile → stays put
-    } else {                                                                                             // from the rack
-      if (target && cellFree(target.row, target.col)) placeTile(tile, target.row, target.col);           // empty → place
-      // onto a tile / off board → nothing, it returns to the rack
+    const from = latest.current.draft.some((d) => d.tile.id === tile.id) ? 'board' : 'rack';
+    const decision = decideDrop({
+      from, point: { x: px, y: py }, cell: latest.current.cell,
+      rect: dragState.rect, transform: viewRef.current, isOccupied: occupiedFor(tile.id),
+      layout: latest.current.layout,
+    });
+    switch (decision.action) {
+      case 'place': placeTile(tile, decision.row, decision.col); break;   // handles the blank picker
+      case 'move':
+        setDraft((d) => d.map((x) => (x.tile.id === tile.id ? { ...x, row: decision.row, col: decision.col } : x)));
+        H.tapMedium(); break;
+      case 'recall': setDraft((d) => d.filter((x) => x.tile.id !== tile.id)); H.tapLight(); break;
+      default: break;   // 'none' — rack tile bounces back, board tile stays put
     }
   }
 
+  // keep the board box's window rect + screen origin fresh (measured on layout and
+  // re-measured on each gesture). We DON'T null the rect first: the board never
+  // moves, so the last measurement stays valid and is available synchronously for
+  // a fast tap (whose async re-measure wouldn't resolve before release).
+  const measureForDrag = () => {
+    screenRef.current?.measureInWindow((x, y) => (dragState.off = { x, y }));
+    boardBoxRef.current?.measureInWindow((x, y, w, h) => { if (w) dragState.rect = { x, y, w, h }; });
+  };
+
+  // handlers that read live state, reached from the once-created responders below
+  // through a ref so they never see a stale render's closure.
+  const hRef = useRef({});
+  hRef.current = { onCellPress, onDraftPress, handleDrop, easeToRest };
+
+  // rack tiles keep their own responder: drag onto the board, or tap to select.
   function panFor(tile) {
     if (pans[tile.id]) return pans[tile.id];
     const canGrab = () => { const L = latest.current; return L.isPlayer && !L.busy && !L.swapMode; };
@@ -179,28 +227,94 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
       onStartShouldSetPanResponder: canGrab,
       onMoveShouldSetPanResponder: canGrab,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        dragState.moved = false; dragState.rect = null;
-        screenRef.current?.measureInWindow((x, y) => (dragState.off = { x, y }));
-        boardBoxRef.current?.measureInWindow((x, y, w, h) => (dragState.rect = { x, y, w, h }));
-      },
+      onPanResponderGrant: () => { dragState.moved = false; measureForDrag(); },
       onPanResponderMove: (e, g) => {
         if (!dragState.moved && Math.hypot(g.dx, g.dy) > 8) { dragState.moved = true; clearHint(); H.tapLight(); setDragTile(tile); }
         if (dragState.moved) dragXY.setValue({ x: e.nativeEvent.pageX - dragState.off.x, y: e.nativeEvent.pageY - dragState.off.y });
       },
       onPanResponderRelease: (e) => {
-        if (!dragState.moved) { // a tap, not a drag
-          const src = latest.current.draft.find((d) => d.tile.id === tile.id);
-          if (src) onDraftPress(src.row, src.col); else onTilePress(tile);
-          return;
-        }
-        setDragTile(null);
-        handleDrop(tile, e.nativeEvent.pageX, e.nativeEvent.pageY);
+        if (!dragState.moved) { onTilePress(tile); return; }
+        setDragTile(null); hRef.current.handleDrop(tile, e.nativeEvent.pageX, e.nativeEvent.pageY);
       },
       onPanResponderTerminate: () => { setDragTile(null); dragState.moved = false; },
     });
     return pans[tile.id];
   }
+
+  // one responder over the whole Skia board: pinch-zoom, pan-when-zoomed, drag a
+  // placed tile, tap an empty cell to place, tap a placed tile to recall.
+  const gstate = useRef({}).current;
+  const twoFinger = (t) => {
+    const a = t[0], b = t[1];
+    return { dist: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY), mid: { x: (a.pageX + b.pageX) / 2, y: (a.pageY + b.pageY) / 2 } };
+  };
+  const startPinch = (t) => {
+    const v = viewRef.current, f = twoFinger(t);
+    gstate.mode = 'pinch';
+    gstate.start = { scale: v.scale, tx: v.tx, ty: v.ty, dist: f.dist, mid: f.mid };
+  };
+  const boardPan = useRef(
+    PanResponder.create({
+      // capture at the box BEFORE the Skia Canvas child can claim the touch —
+      // otherwise taps/board-drags never reach this responder.
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (e) => {
+        measureForDrag();
+        const t = e.nativeEvent.touches;
+        if (t.length >= 2) { startPinch(t); return; }
+        const L = latest.current;
+        const c = L.cell, sz = boardWidth(c);
+        const ne = e.nativeEvent;
+        // hit-test from window coords + the measured board rect (same proven path as
+        // the drop); fall back to view-local coords if the rect isn't ready yet.
+        const canvasH = L.layout ? L.layout.cy * 2 : sz;
+        const hit = dragState.rect
+          ? cellAtScreen(ne.pageX, ne.pageY, c, dragState.rect, viewRef.current, L.layout)
+          : cellAtScreen(ne.locationX, ne.locationY, c, { x: 0, y: 0, w: sz, h: canvasH }, viewRef.current, L.layout);
+        const dTile = hit && L.draft.find((d) => d.row === hit.row && d.col === hit.col);
+        const canGrab = L.isPlayer && !L.busy && !L.swapMode;
+        if (dTile && canGrab) {
+          gstate.mode = 'tile'; gstate.tile = dTile.tile; gstate.moved = false; gstate.cell = hit;
+        } else {
+          gstate.mode = 'board'; gstate.moved = false; gstate.start = { ...viewRef.current };
+          gstate.canPan = viewRef.current.scale > 1.02; gstate.tapCell = hit;
+        }
+      },
+      onPanResponderMove: (e, g) => {
+        const t = e.nativeEvent.touches;
+        const sz = boardWidth(latest.current.cell);
+        if (t.length >= 2) {
+          if (gstate.mode !== 'pinch') startPinch(t);
+          applyView(pinchView(gstate.start, twoFinger(t), sz));
+          return;
+        }
+        if (gstate.mode === 'tile') {
+          if (!gstate.moved && Math.hypot(g.dx, g.dy) > 8) { gstate.moved = true; clearHint(); H.tapLight(); setDragTile(gstate.tile); }
+          if (gstate.moved) dragXY.setValue({ x: e.nativeEvent.pageX - dragState.off.x, y: e.nativeEvent.pageY - dragState.off.y });
+        } else if (gstate.mode === 'board') {
+          if (Math.hypot(g.dx, g.dy) > 6) gstate.moved = true;
+          if (gstate.canPan) applyView(panView(gstate.start, g.dx, g.dy, sz));
+        }
+      },
+      onPanResponderRelease: (e) => {
+        if (gstate.mode === 'tile') {
+          if (!gstate.moved) hRef.current.onDraftPress(gstate.cell.row, gstate.cell.col);
+          else { setDragTile(null); hRef.current.handleDrop(gstate.tile, e.nativeEvent.pageX, e.nativeEvent.pageY); }
+        } else if (gstate.mode === 'board') {
+          if (!gstate.moved && gstate.tapCell) hRef.current.onCellPress(gstate.tapCell.row, gstate.tapCell.col);
+          else if (viewRef.current.scale <= 1.05) hRef.current.easeToRest();
+        } else if (gstate.mode === 'pinch') {
+          if (viewRef.current.scale <= 1.05) hRef.current.easeToRest();
+        }
+        gstate.mode = null;
+      },
+      onPanResponderTerminate: () => { setDragTile(null); gstate.mode = null; },
+    })
+  ).current;
 
   const dragId = dragTile ? dragTile.id : null;
   const dEntry = dragTile && draft.find((d) => d.tile.id === dragTile.id);
@@ -300,17 +414,18 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
         </View>
       </View>
 
-      {/* board — takes the flexible middle space so there's room to zoom */}
-      <View style={styles.boardArea}>
-        <View ref={boardBoxRef} collapsable={false} style={{ width: boardWidth(cell), height: boardWidth(cell) }}>
-          <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
-            <ZoomableBoard size={boardWidth(cell)} transformRef={boardTf}>
-              <Board board={game.state.board} draft={draft} hint={hint} validSet={validSet}
-                cell={cell} theme={theme} onCellPress={onCellPress} onDraftPress={onDraftPress} animate={!reduced}
-                panFor={swapMode ? null : panFor} dragId={dragId} />
-            </ZoomableBoard>
-          </Animated.View>
-        </View>
+      {/* board — Skia (crisp at any zoom); one responder handles all interaction.
+          The canvas is as tall as this area so zoom grows the board into the space
+          above/below, not just the square footprint. */}
+      <View style={styles.boardArea} onLayout={(e) => setAreaH(Math.round(e.nativeEvent.layout.height))}>
+        <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
+          <View ref={boardBoxRef} collapsable={false} accessible testID="board-box" onLayout={measureForDrag}
+            {...boardPan.panHandlers}
+            style={{ width: size, height: canvasH }}>
+            <SkiaBoard board={game.state.board} draft={draft} hint={hint} validSet={validSet}
+              cell={cell} theme={theme} view={view} dragId={dragId} rev={rev} canvasHeight={canvasH} />
+          </View>
+        </Animated.View>
       </View>
 
       {/* bottom dock: live score + message + rack + controls */}

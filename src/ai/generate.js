@@ -85,11 +85,18 @@ export function generateMoves(board, rack, trie, lexicon, opts = {}) {
       const cross = [];
       for (let i = 0; i < SIZE; i++) { const [r, c] = toRC(line, i); cross[i] = board[r][c].tile ? null : crossSet(board, r, c, horiz, lexicon); }
 
+      // ANCHORS are empty squares adjacent to an existing tile (or the center on an
+      // empty board). Appel–Jacobson generates each word from its leftmost anchor and
+      // builds the word's "left part" only across empty squares — crucially stopping
+      // before ANOTHER anchor (the `isAnchor` break in leftRoom below). That break is
+      // what makes every move be produced exactly once instead of once per anchor it
+      // touches. `found` (keyed by placement signature) is a final dedup backstop.
       for (let i = 0; i < SIZE; i++) {
         const [ar, ac] = toRC(line, i);
         if (!isAnchor(board, ar, ac, empty)) continue;
 
-        // How many empty squares are available to the left before a tile/edge.
+        // How many empty squares are free to the left for the left-part, stopping at
+        // the first existing tile OR the previous anchor (see the note above).
         let leftRoom = 0;
         for (let k = i - 1; k >= 0; k--) { const [r, c] = toRC(line, k); if (board[r][c].tile) break; if (isAnchor(board, r, c, empty)) break; leftRoom++; }
 
@@ -130,7 +137,12 @@ export function generateMoves(board, rack, trie, lexicon, opts = {}) {
           for (let k = start; k < i; k++) { const [r, c] = toRC(line, k); const L = letterOf(board[r][c].tile); if (!node[L]) { good = false; break; } node = node[L]; }
           if (good) extendRight(i, node, [], rack.slice());
         } else {
-          // leftPart recursion: place 0..leftRoom new tiles to the left, then extendRight from anchor
+          // leftPart recursion: try every left-part of length 0..leftRoom (each is a
+          // trie-valid prefix), then extendRight from the anchor to finish the word.
+          // `leftPlaced` is a SHARED MUTABLE stack (push before recursing, pop after)
+          // so we don't reallocate an array per branch; `buildLeftPlaced()` snapshots
+          // it (a copy) at the moment we hand it to extendRight, since extendRight
+          // keeps building on top and must not see later left-part mutations.
           const leftPart = (node, count, startCol, rackLeft) => {
             extendRight(i, node, buildLeftPlaced(), rackLeft);
             if (count === 0) return;

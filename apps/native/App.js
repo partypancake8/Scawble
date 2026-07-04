@@ -5,6 +5,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { View, Text, ActivityIndicator, Animated, useColorScheme, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Fredoka_400Regular, Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createGame } from './src/core/controller.js';
 import { seedForDate } from './src/core/daily.js';
@@ -18,7 +19,8 @@ import Game from './src/screens/Game';
 import Analysis from './src/screens/Analysis';
 import Settings from './src/screens/Settings';
 
-export default function App() {
+function AppInner() {
+  const insets = useSafeAreaInsets();
   const [fontsLoaded] = useFonts({ Fredoka_400Regular, Fredoka_600SemiBold });
   const sysScheme = useColorScheme();
 
@@ -61,7 +63,7 @@ export default function App() {
   }, [words, difficulty]);
 
   const onGameOver = useCallback((rev) => {
-    const scores = { ...game.state.scores };
+    const scores = { ...game.state.scores }; // snapshot: game.state is mutated in place
     setReview(rev); setFinalScores(scores);
     recordResult(scores.player > scores.bot).then(setStats);
     setScreen('analysis');
@@ -108,7 +110,7 @@ export default function App() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.paper, paddingTop: Platform.OS === 'ios' ? 50 : 24 }]}>
+    <View style={[styles.root, { backgroundColor: theme.paper, paddingTop: Math.max(insets.top, 10), paddingBottom: insets.bottom }]}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Animated.View style={{
         flex: 1, opacity: anim,
@@ -120,6 +122,14 @@ export default function App() {
         {body}
       </Animated.View>
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppInner />
+    </SafeAreaProvider>
   );
 }
 

@@ -5,6 +5,12 @@ import { FONT_SEMI } from '../theme';
 
 export default function Sheet({ visible, title, onClose, theme, children }) {
   if (!visible) return null;
+  // iOS-only bug fix (keep both `accessible={false}`): an accessible Pressable
+  // collapses its children out of the accessibility tree, which made the blank
+  // picker / move-log letters unreachable to VoiceOver AND to UI automation.
+  // Marking the scrim + sheet non-accessible keeps the children individually
+  // focusable. The inner `onPress={() => {}}` just swallows taps so a tap on the
+  // sheet body doesn't bubble to the scrim and close it. (See CLAUDE.md bug list.)
   return (
     <Pressable style={styles.scrim} onPress={onClose} testID="sheet-scrim" accessible={false}>
       <Pressable style={[styles.sheet, { backgroundColor: theme.surface }]} onPress={() => {}} accessible={false}>

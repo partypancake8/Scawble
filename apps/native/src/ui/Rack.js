@@ -27,7 +27,7 @@ export default function Rack({ slots, tileSize, theme, selectedId, swapSel, onTi
 }
 
 const styles = StyleSheet.create({
-  rack: { flexDirection: 'row', gap: 8, padding: 10, borderRadius: 16, borderWidth: 1.5,
+  rack: { flexDirection: 'row', gap: 6, padding: 8, borderRadius: 16, borderWidth: 1.5, alignSelf: 'center', maxWidth: '100%',
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
   slot: { alignItems: 'center', justifyContent: 'center' },
 });

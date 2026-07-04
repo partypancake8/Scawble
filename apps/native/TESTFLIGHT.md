@@ -7,8 +7,9 @@ Everything below is staged and ready. This is the exact sequence for when your
 - App identity: name **Scawble**, bundle id **`com.scawble.app`**, version 1.0.0
 - App icon (cream tile on coral) + splash installed
 - `eas.json` build profiles + `eas-cli` installed
-- `expo-doctor`: 21/21 checks pass
-- SDK pinned to 56 (stable); JS validated (full game plays, identical scores, 0 errors)
+- `expo-doctor` run clean (re-run `npx expo-doctor` after any dependency change)
+- SDK pinned to **54** (matches the user's Expo Go); JS validated on device (full game
+  plays, Skia board + drag + melt, identical scores, 0 errors)
 
 ## What you need
 1. **Apple Developer Program** — approved (in progress).
@@ -47,7 +48,7 @@ eas submit -p ios --latest
 - Bumping a new build later: just re-run the two `eas build` / `eas submit` lines;
   `autoIncrement` bumps the build number automatically.
 - **Use EAS cloud, not a local build.** This Mac has **Xcode 26**, which is newer
-  than Expo SDK 56's native code supports — a local `expo run:ios` / `eas build
+  than Expo SDK 54's native code supports — a local `expo run:ios` / `eas build
   --local` fails on Swift errors in `expo-modules-jsi` (`weak let` / `Sendable`).
-  EAS's cloud builders use a Xcode matched to SDK 56, so `eas build` (no `--local`)
+  EAS's cloud builders use a Xcode matched to SDK 54, so `eas build` (no `--local`)
   is unaffected. Expo Go is also unaffected (it ships a prebuilt runtime).

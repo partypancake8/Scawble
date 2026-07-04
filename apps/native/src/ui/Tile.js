@@ -1,6 +1,9 @@
 // Tile.js — a single Scawble tile (rack, board, wordmark). Soft rounded face,
 // letter centered, small point value bottom-right; blanks render in accent.
 // Pops in with a spring on mount (the web "enter"/"snap"/"land" feel).
+// State props: `selected` (tap-selected → accent ring + lift), `swapsel` (swap
+// mode → accent2 ring), `faded` (dimmed). `animate` toggles the pop-in spring.
+// Used by Rack (RN); the board tiles are drawn in Skia (SkiaBoard), not here.
 import React, { useRef, useEffect } from 'react';
 import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
 import { FONT_SEMI } from '../theme';

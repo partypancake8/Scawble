@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A single-player tile word game matching the polish of NYT Crossplay.",
+  "description": "A single-player tile word game — the greatest tile word game ever made (see docs/NORTH-STAR.md).",
   "scripts": {
-    "test": "node tests/engine.test.js && node tests/ai.test.js",
+    "test": "node tests/engine.test.js && node tests/ai.test.js && node tests/board.test.js",
     "smoke": "node tests/dom-smoke.mjs",
     "build": "node scripts/build-standalone.mjs",
+    "embed-fonts": "node scripts/embed-fonts.mjs",
     "serve": "python3 -m http.server 8080"
   },
   "devDependencies": {

@@ -1,5 +1,14 @@
 # Scawble — Handover
 
+> ⚠️ **STATUS UPDATE (superseded in part).** This doc was written when the native
+> iOS app had **not** been started. That work is now **done**: `apps/native/` is a
+> playable Expo/React Native app with a **Skia board**, drag-and-drop, tile
+> merge/melt, and pinch-zoom, validated on the iPhone. **The current source of
+> truth is [`CLAUDE.md`](CLAUDE.md)** (+ [`docs/NORTH-STAR.md`](docs/NORTH-STAR.md)
+> for vision, [`docs/RULES.md`](docs/RULES.md) for the game rules). The engine/AI/
+> web-prototype sections below are still accurate; treat the "native not started /
+> your job on the Mac" framing as historical.
+
 Everything you need to pick this up on a Mac and keep going. Read this top to
 bottom once; it's the map.
 
@@ -29,7 +38,7 @@ Mac + Xcode — that's why this is being handed to you).
 | Dictionary (full ENABLE, 172,823 words) | ✅ Done · builds ~160ms, bot moves 15–40ms |
 | Web game (5 screens, drag+tap, juice, analysis) | ✅ Done · headless DOM smoke passes |
 | Soft & Cute visual redesign + all "P1" features | ✅ Done (v2 pass) |
-| **Native iOS (React Native + Skia)** | ⛔ **Not started** — your job on the Mac |
+| **Native iOS (Expo/React Native + Skia)** | ✅ **Done** — 5 screens, Skia board (crisp zoom), drag-and-drop, merge/melt, on-device validated. See `CLAUDE.md`. |
 
 **P1 features shipped:** last-move-per-player HUD, move log, blank-tile picker,
 hint, tap-to-place, settings screen (sound/haptics/motion/theme/difficulty),
@@ -84,8 +93,14 @@ scawble/
 ├─ src/                    PORTABLE game logic (pure JS, zero deps) — reuse in RN as-is
 │  ├─ engine/  tiles · board · score · rules · state
 │  ├─ ai/      generate (trie move-gen) · bot (tiers, bestMove)
-│  └─ lexicon/ lexicon (Set lookup) + starter list
-├─ apps/prototype/         the WEB app (view layer)
+│  ├─ lexicon/ lexicon (Set lookup) + starter list
+│  └─ board/   geometry · interaction (zoom/pan hit-test + drop rules)
+├─ apps/native/            the iOS APP (Expo/RN + Skia) — reuses src/ copied to src/core/
+│  ├─ App.js       root: fonts + dictionary + settings + routing + theme
+│  ├─ src/screens/ Home · Game · Analysis · Settings
+│  ├─ src/ui/      Tile · SkiaBoard · Rack · Button · Sheet · Icon · AnimatedNumber
+│  └─ src/core/    the portable core, copied from repo /src (re-copy on change)
+├─ apps/prototype/         the WEB app (view layer) — reference implementation
 │  ├─ index.html  style.css  fonts.css
 │  ├─ app.js       DOM + interaction (drag, tap, juice, screens)
 │  ├─ controller.js  headless orchestration (state + AI + analysis)
@@ -93,7 +108,7 @@ scawble/
 │  ├─ sound.js     WebAudio SFX
 │  ├─ enable1.txt  the dictionary
 │  └─ scawble.html THE STANDALONE (generated; everything inlined)
-├─ tests/          engine.test.js · ai.test.js · dom-smoke.mjs
+├─ tests/          engine.test.js · ai.test.js · board.test.js · dom-smoke.mjs
 └─ scripts/        build-standalone.mjs · embed-fonts.mjs
 ```
 
@@ -132,8 +147,9 @@ you **keep `src/` unchanged** and write a new native view layer against the same
 
 ## Testing
 
-- `npm test` — 49 pure-logic tests (scoring incl. cross-words/premiums/bingo/blanks,
-  validation, fair-endgame; move-gen legality, bestMove, difficulty tiers).
+- `npm test` — 33 engine + 16 AI + 78 board-interaction assertions (scoring incl.
+  cross-words/premiums/bingo/blanks, validation, fair-endgame; move-gen legality,
+  bestMove, difficulty tiers; board geometry, zoom/pan hit-testing, drop rules).
 - `npm run smoke` — boots the real UI in linkedom (headless DOM) and drives a game +
   every P1 surface (tap-to-place, hint, settings, move log), asserting zero runtime
   errors. This caught a real init-order bug during development.
@@ -144,16 +160,15 @@ you **keep `src/` unchanged** and write a new native view layer against the same
 
 ## What's next
 
-### Phase 5 — the native iOS app (your main task)
-Per `docs/PRD.html` the target stack is **React Native + `@shopify/react-native-skia`
-+ Reanimated**. Plan:
-1. `npx create-expo-app` (or bare RN). Add `src/` unchanged (it's already portable JS/TS-ready).
-2. Port `controller.js` (it has no DOM — nearly copy-paste).
-3. Build the five screens natively; render tiles/board with Skia, animate with
-   Reanimated worklets (60fps on the UI thread). The interaction spec (durations,
-   easings, haptics) is literal in `docs/PRD.html` §04.
-4. Real haptics via `expo-haptics`; sound via `expo-av`.
-5. TestFlight.
+### Phase 5 — the native iOS app ✅ DONE
+This is built: `apps/native/` (Expo SDK 54, React Native + `@shopify/react-native-skia`
+board, reanimated/worklets for the Skia renderer, `expo-haptics`). Five screens, the
+portable `src/` reused unchanged in `src/core/`, drag-and-drop + pinch-zoom + tile
+merge/melt, validated on the iPhone. **What actually shipped differs from the original
+plan below** (e.g. gestures via `PanResponder` not gesture-handler; dictionary inlined
+as `src/lexicon-data.js` not loaded via `expo-asset`) — see **`CLAUDE.md`** and
+`docs/PHASE5-NATIVE-PLAN.md` (historical plan) for the details. Remaining: TestFlight
+(`apps/native/TESTFLIGHT.md`, gated on Apple approval), sound, and polish.
 
 ### P2 backlog (nice-to-haves, not blockers)
 - Resume an in-progress game (persist state to storage)

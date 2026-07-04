@@ -1,5 +1,22 @@
 # Phase 5 — Native iOS Port (scoping)
 
+> ⚠️ **SUPERSEDED — historical planning doc.** The native port is **done**
+> (`apps/native/`). What actually shipped differs from this plan in several places,
+> so **treat this as history, not current guidance**. Key divergences:
+> - **Gestures use the built-in `PanResponder`, NOT `react-native-gesture-handler`**
+>   (which is not a dependency). `react-native-reanimated` + `react-native-worklets`
+>   are present only because Skia's on-screen renderer requires them.
+> - **The dictionary is inlined as `src/lexicon-data.js`**, not loaded via
+>   `expo-asset`/`expo-file-system` from `enable1.txt`.
+> - **Sound is not implemented** (`expo-audio` not installed); haptics stand in.
+> - `controller.js` / `daily.js` live in **`apps/native/src/core/`** (copied), and the
+>   repo-root `src/` was left unchanged (this plan suggested moving them into `src/`).
+> - Pinned to **Expo SDK 54** (this doc predates that decision).
+>
+> **Current source of truth: [`../CLAUDE.md`](../CLAUDE.md)** (architecture + the Skia
+> rebuild), [`../apps/native/README.md`](../apps/native/README.md), and
+> [`RULES.md`](RULES.md). The section below is the original scoping map.
+
 Target stack (per `docs/PRD.html` §04): **Expo + React Native + `@shopify/react-native-skia` + `react-native-reanimated` + `react-native-gesture-handler`**, with `expo-haptics`, `expo-audio`, `expo-font`, and `@react-native-async-storage/async-storage`.
 
 The whole point of the architecture holds up: **`src/` is pure and moves over untouched.** Everything web-specific lives in `apps/prototype/` and gets rewritten against the same headless API. This doc is the map for that rewrite.
