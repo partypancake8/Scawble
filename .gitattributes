@@ -1,0 +1,13 @@
+# Keep GitHub's language stats representative of the hand-written source.
+# These are generated build outputs or inlined data blobs, not authored code —
+# scawble.html (the single-file standalone with the whole dictionary + fonts + a
+# JS bundle inlined) and lexicon-data.js / enable1.txt (the ENABLE word list) are
+# what skew the repo to "97% HTML". Exclude them from the language breakdown.
+apps/prototype/scawble.html      linguist-generated
+apps/native/src/lexicon-data.js  linguist-generated
+apps/prototype/enable1.txt       linguist-generated
+apps/prototype/fonts.css         linguist-generated
+
+# The PRDs are documentation, not application code.
+docs/PRD.html      linguist-documentation
+docs/PRD-v2.html   linguist-documentation
