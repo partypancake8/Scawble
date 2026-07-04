@@ -46,12 +46,12 @@ Node was installed locally at `~/.local/bin`.
 
 ## Verify
 ```bash
-npm test          # 28 engine + 16 AI tests (pure logic)
+npm test          # 33 engine + 16 AI tests (pure logic)
 npm run smoke     # boots the whole UI in a headless DOM, plays turns, checks for errors
 ```
 
 ## Build status
-- [x] **Phase 1** — engine + lexicon. *28 tests green.*
+- [x] **Phase 1** — engine + lexicon. *33 tests green.*
 - [x] **Phase 2** — trie move generator + 4 bot difficulty tiers + `bestMove`. *16 tests green.*
 - [x] **Phase 3** — web feel prototype: drag/snap/squash tiles, sound, haptics,
       score count-up, bingo burst, reduced-motion. *DOM smoke green.*

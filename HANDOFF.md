@@ -24,7 +24,7 @@ Mac + Xcode — that's why this is being handed to you).
 
 | Area | State |
 |---|---|
-| Game engine (rules, scoring, fair-endgame) | ✅ Done · 28 unit tests |
+| Game engine (rules, scoring, fair-endgame) | ✅ Done · 33 unit tests |
 | AI (move generator + 4 difficulty tiers + best-move) | ✅ Done · 16 unit tests |
 | Dictionary (full ENABLE, 172,823 words) | ✅ Done · builds ~160ms, bot moves 15–40ms |
 | Web game (5 screens, drag+tap, juice, analysis) | ✅ Done · headless DOM smoke passes |
@@ -132,7 +132,7 @@ you **keep `src/` unchanged** and write a new native view layer against the same
 
 ## Testing
 
-- `npm test` — 44 pure-logic tests (scoring incl. cross-words/premiums/bingo/blanks,
+- `npm test` — 49 pure-logic tests (scoring incl. cross-words/premiums/bingo/blanks,
   validation, fair-endgame; move-gen legality, bestMove, difficulty tiers).
 - `npm run smoke` — boots the real UI in linkedom (headless DOM) and drives a game +
   every P1 surface (tap-to-place, hint, settings, move log), asserting zero runtime
@@ -176,7 +176,8 @@ two PRDs in `docs/` capture the specs and acceptance criteria.
   (no sudo). On your Mac just use a normal Node install.
 - `node_modules/` is **not** in this zip — run `npm install`. (The Linux esbuild
   binary wouldn't work on macOS anyway.)
-- This was never git-committed. On the Mac: `git init && git add -A && git commit -m
-  "Scawble handover"` to start clean history.
+- Now under git (`main`, cloned from `github.com/partypancake8/Scawble`). Smoke test
+  was patched for Node 21+ (read-only global `navigator`); see `docs/PHASE5-NATIVE-PLAN.md`
+  for the native-port scope.
 - "Scrabble" is a Hasbro/Mattel trademark — keep the name **Scawble**, keep our own
   tile palette/values, ship the public-domain word list. (Details in the PRDs.)

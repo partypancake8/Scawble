@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Scawble",
+    "slug": "scawble",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "scawble",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.scawble.app"
+    },
+    "android": {
+      "package": "com.scawble.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F1F5EE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
