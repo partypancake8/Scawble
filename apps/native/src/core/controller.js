@@ -2,12 +2,12 @@
 // Holds the GameState + lexicon/trie, drives player & bot turns, and records
 // the ScawBot analysis log (best-move-you-missed + a luck proxy). PRD §05/§08.
 
-import { newGame, applyMove, pass, swap } from '../../src/engine/state.js';
-import { validate } from '../../src/engine/rules.js';
-import { scoreMove } from '../../src/engine/score.js';
-import { makeLexicon } from '../../src/lexicon/lexicon.js';
-import { buildTrie, generateMoves } from '../../src/ai/generate.js';
-import { chooseMove, bestMove } from '../../src/ai/bot.js';
+import { newGame, applyMove, pass, swap } from './engine/state.js';
+import { validate } from './engine/rules.js';
+import { scoreMove } from './engine/score.js';
+import { makeLexicon } from './lexicon/lexicon.js';
+import { buildTrie, generateMoves } from './ai/generate.js';
+import { chooseMove, bestMove } from './ai/bot.js';
 
 export function createGame(words, { seed = 'default', difficulty = 'expert' } = {}) {
   const lexicon = makeLexicon(words, 'ENABLE');
@@ -29,7 +29,8 @@ export function createGame(words, { seed = 'default', difficulty = 'expert' } = 
     playerBest() { return bestMove(state.board, state.racks.player, trie, lexicon); },
 
     /** Dry-run a set of placements (no commit): live legality + score preview.
-     *  `cells` = every cell of every word formed (incl. pre-existing letters). */
+     *  `cells` = every cell of every word formed (incl. pre-existing letters), so
+     *  the UI can outline the FULL valid word, not just the newly dropped tiles. */
     preview(placements) {
       const v = validate(state.board, placements, lexicon);
       if (!v.ok) return { ok: false, error: v.error };

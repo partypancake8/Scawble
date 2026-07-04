@@ -10,7 +10,10 @@ const enableText = fs.readFileSync(root + 'apps/prototype/enable1.txt', 'utf8');
 const { window, document } = parseHTML(html);
 
 global.window = window; global.document = document;
-global.navigator = { vibrate() {} }; window.navigator = global.navigator;
+// Node 21+ exposes `navigator` as a read-only global getter, so define it rather
+// than assign (plain assignment throws "only has a getter"). It's configurable.
+Object.defineProperty(globalThis, 'navigator', { value: { vibrate() {} }, configurable: true, writable: true });
+window.navigator = globalThis.navigator;
 global.HTMLElement = window.HTMLElement; global.Node = window.Node;
 global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
 global.performance = { now: () => Date.now() };

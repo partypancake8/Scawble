@@ -1,5 +1,9 @@
 // embed-fonts.mjs — inline the Fredoka woff2 files as data-URIs into fonts.css,
 // so the cute rounded type is CSP-safe and works offline / from file://.
+// Run: `npm run embed-fonts`. You ONLY need this if you change/replace the Fredoka
+// woff2 files in apps/prototype/fonts/ — it regenerates apps/prototype/fonts.css,
+// which `npm run build` then inlines into the standalone. (The native app uses
+// @expo-google-fonts/fredoka instead, so this doesn't affect apps/native.)
 import fs from 'fs';
 const root = new URL('..', import.meta.url).pathname;
 const b64 = (f) => fs.readFileSync(root + 'apps/prototype/fonts/' + f).toString('base64');
