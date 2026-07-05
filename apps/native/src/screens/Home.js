@@ -9,7 +9,7 @@ import { FONT, FONT_SEMI } from '../theme';
 const WORDMARK = [['S', 1], ['C', 2], ['A', 1], ['W', 5], ['B', 3], ['L', 1], ['E', 1]];
 const TIERS = [['casual', 'Casual'], ['skilled', 'Skilled'], ['expert', 'Expert'], ['brutal', 'Brutal']];
 
-export default function Home({ theme, difficulty, stats, loading, loadError, onSetDifficulty, onPlayDaily, onPlayClassic, onOpenSettings }) {
+export default function Home({ theme, difficulty, stats, loading, loadError, onSetDifficulty, onPlayDaily, onPlayClassic, onOpenSettings, onDevMenu }) {
   const streak = stats && stats.games
     ? `Streak ${stats.streak || 0} · Best ${stats.best || 0} · ${stats.wins || 0}/${stats.games} won`
     : 'Your first game awaits.';
@@ -17,11 +17,14 @@ export default function Home({ theme, difficulty, stats, loading, loadError, onS
     <View style={[styles.screen, { backgroundColor: theme.paper }]}>
       <Pressable testID="home-settings" onPress={onOpenSettings} style={styles.corner}><Icon name="settings" size={24} color={theme.inkSoft} /></Pressable>
 
-      <View style={styles.wordmark}>
-        {WORDMARK.map(([l, v], i) => (
-          <Tile key={i} label={l} value={v} size={46} theme={theme} fontScale={0.55} />
-        ))}
-      </View>
+      {/* long-press the wordmark to open the hidden dev/testing menu */}
+      <Pressable onLongPress={onDevMenu} delayLongPress={650}>
+        <View style={styles.wordmark}>
+          {WORDMARK.map(([l, v], i) => (
+            <Tile key={i} label={l} value={v} size={46} theme={theme} fontScale={0.55} />
+          ))}
+        </View>
+      </Pressable>
       <Text style={[styles.tagline, { color: theme.inkSoft }]}>A cozy daily word game. Just you and ScawBot.</Text>
 
       <View style={styles.menu}>

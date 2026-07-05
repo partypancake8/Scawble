@@ -2,17 +2,18 @@
 // Holds the GameState + lexicon/trie, drives player & bot turns, and records
 // the ScawBot analysis log (best-move-you-missed + a luck proxy). PRD §05/§08.
 
-import { newGame, applyMove, pass, swap } from './engine/state.js';
+import { newGame, applyMove, pass, swap, placeCommitted } from './engine/state.js';
 import { validate } from './engine/rules.js';
 import { scoreMove } from './engine/score.js';
 import { makeLexicon } from './lexicon/lexicon.js';
 import { buildTrie, generateMoves } from './ai/generate.js';
 import { chooseMove, bestMove } from './ai/bot.js';
 
-export function createGame(words, { seed = 'default', difficulty = 'expert' } = {}) {
+export function createGame(words, { seed = 'default', difficulty = 'expert', rack = null, setup = null } = {}) {
   const lexicon = makeLexicon(words, 'ENABLE');
   const trie = buildTrie(words);
-  let state = newGame(seed);
+  let state = newGame(seed, { rack });        // rack != null only via the dev menu
+  if (setup) for (const s of setup) placeCommitted(state, s);
 
   const analysis = [];        // per player turn: { actual, best, bestWords }
   let playerBestTotal = 0;    // sum of player's best-available scores (luck proxy)

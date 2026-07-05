@@ -1,5 +1,6 @@
-// Tile.js — a single Scawble tile (rack, board, wordmark). Soft rounded face,
-// letter centered, small point value bottom-right; blanks render in accent.
+// Tile.js — a single Scawble tile (rack, board, wordmark). Flat rounded face
+// (no bottom lip), a big centred letter, small point value in the top-left;
+// blanks render in accent.
 // Pops in with a spring on mount (the web "enter"/"snap"/"land" feel).
 // State props: `selected` (tap-selected → accent ring + lift), `swapsel` (swap
 // mode → accent2 ring), `faded` (dimmed). `animate` toggles the pop-in spring.
@@ -22,20 +23,20 @@ export default function Tile({ label, value, size, theme, blank, selected, swaps
         {
           width: size, height: size, borderRadius: r,
           backgroundColor: theme.tileFace,
-          shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 5, elevation: 3,
-          borderBottomWidth: Math.max(1.5, size * 0.055), borderBottomColor: theme.tileLip,
+          // flat tile: no bottom lip; a soft, even (non-directional) ambient shadow only.
+          shadowColor: '#000', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 2,
           opacity: faded ? 0.35 : 1,
           transform: [{ scale }, ...(selected ? [{ translateY: -4 }] : [])],
         },
-        selected && { borderWidth: 3, borderColor: theme.accent, borderBottomColor: theme.accent },
-        swapsel && { borderWidth: 3, borderColor: theme.accent2, borderBottomColor: theme.accent2 },
+        selected && { borderWidth: 3, borderColor: theme.accent },
+        swapsel && { borderWidth: 3, borderColor: theme.accent2 },
       ]}
     >
-      <Text style={{ fontFamily: FONT_SEMI, fontSize: size * fontScale, color: blank ? theme.accent : theme.tileInk }}>
+      <Text style={{ fontFamily: FONT_SEMI, fontSize: size * fontScale * 1.2, color: blank ? theme.accent : theme.tileInk }}>
         {label}
       </Text>
       {value != null && (
-        <Text style={[styles.val, { fontSize: size * fontScale * 0.42, right: size * 0.12, bottom: size * 0.06 }]}>
+        <Text style={[styles.val, { fontSize: size * fontScale * 0.4, left: size * 0.11, top: size * 0.05 }]}>
           {value}
         </Text>
       )}

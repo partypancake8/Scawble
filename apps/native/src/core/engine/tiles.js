@@ -82,6 +82,22 @@ export function draw(bag, n) {
   return out;
 }
 
+/** Pull one bag tile matching each requested letter (mutates bag), in order.
+ *  `letters` = 'RETINAS' or ['R','E',...]. Reuses real bag tiles, so their
+ *  values + unique ids stay correct and the 100-tile invariant holds. Throws if
+ *  a letter isn't available. Used ONLY by the opt-in dev/scenario rig, never by
+ *  normal deals, so daily reproducibility is untouched. */
+export function dealRack(bag, letters) {
+  const want = (typeof letters === 'string' ? [...letters] : letters).map((c) => String(c).toUpperCase());
+  const out = [];
+  for (const L of want) {
+    const i = bag.findIndex((t) => t.letter === L);
+    if (i === -1) throw new Error(`dealRack: no '${L}' left in the bag`);
+    out.push(bag.splice(i, 1)[0]);
+  }
+  return out;
+}
+
 /** Effective letter of a tile (blank uses its assigned letter). */
 export function letterOf(tile) {
   return tile.assigned || tile.letter;

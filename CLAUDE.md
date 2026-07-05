@@ -39,7 +39,7 @@ logic, and keep it in sync with `src/engine/` if a rule ever changes.
 ## Architecture
 
 - **`src/`** — portable, pure, **zero-dependency** game logic. Runs identically in web + RN.
-  33 engine + 16 AI + 78 board + 24 fx + 28 audio assertions (`npm test`). NEVER add UI/DOM/RN deps here.
+  33 engine + 16 AI + 78 board + 24 fx + 28 audio + 13 melt + 24 dev assertions (`npm test`). NEVER add UI/DOM/RN deps here.
   - `src/engine/` — tiles · board · score · rules · state (Crossplay-flavored rules, rebalanced tile values, fair endgame)
   - `src/ai/` — generate (trie move generator) · bot (4 difficulty tiers, bestMove)
   - `src/lexicon/` — swappable word source (ENABLE, 172,823 words)
@@ -50,6 +50,9 @@ logic, and keep it in sync with `src/engine/` if a rule ever changes.
     `settle.js` (commit "land big, ease to rest" curve). Tested in `tests/fx.test.js`.
   - `src/audio/` — pure sound synthesis: `wav.js` (16-bit PCM WAV bytes) + `sfx.js` (event→tone
     table + `pickSound`). Tested in `tests/audio.test.js`; assets built via `npm run build-sfx`.
+  - `src/dev/` — opt-in dev/testing scenarios (`scenarios.js`: rig a bingo/crossing/blank rack via
+    `newGame(seed,{rack})` + `dealRack`). Reached by long-pressing the Home wordmark. Tested in
+    `tests/dev.test.js`; the melt topology (`src/board/melt.js`) is tested in `tests/melt.test.js`.
 - **`apps/prototype/`** — original web app (reference implementation of every feature).
 - **`apps/native/`** — the iOS app (Expo/RN). Reuses `src/` **unchanged**, copied to
   `apps/native/src/core/` (re-copy on change; don't fork the core).
@@ -82,13 +85,16 @@ score chip, drag target ring) and on the user's iPhone.
   vector shapes inside one `<Group transform origin=center>`; zoom scales the vector scene so
   it stays print-sharp (no rasterization blur). The center star is a drawn path (the `✦` glyph
   isn't in Fredoka). Two design points that took device iteration to get right:
-  - **Melt = union of uniform cell squares + `CornerPathEffect`** (`meltUnion` in SkiaBoard).
-    Each tile is drawn one pitch wide (cell + GAP) so neighbours overlap → a STEP-FREE orthogonal
-    polygon; one `<CornerPathEffect r={cellR}>` at draw time then rounds EVERY corner uniformly —
-    convex outer caps AND concave inner "armpits" where words cross (T/plus/L/hole junctions),
-    with no seams or fillet hacks. (An earlier hand-rolled per-corner + concave-fillet approach
-    left 1px slivers at the GAP/2 steps — this replaced it.) The lip is the same union shifted
-    down; the SAME `meltUnion` builds the green valid-word outline, so its junctions round too.
+  - **Melt = union of rounded cell rects + adjacency connectors** (`meltUnion` in SkiaBoard,
+    topology in `src/board/melt.js`). Each filled cell is an EXACT rounded square (radius `faceR`
+    = 0.24·cell, matching the cell backgrounds); a connector rect bridges the GAP only between
+    orthogonally-adjacent FILLED cells (via the tested `connectors()`), so a straight word is one
+    clean pill. Because empties are never bridged, an ENCLOSED empty cell is never coloured (this
+    replaced an earlier "union of oversized cell+GAP squares + one big `CornerPathEffect`" that
+    pinched small holes shut and filled courtyards, and blooed the corners). A small
+    `<CornerPathEffect r={armpitR}>` (0.16·cell) then rounds ONLY the genuine crossing "armpits".
+    Tiles are FLAT (no lip/bottom shadow); the SAME `meltUnion` builds the green valid-word outline.
+    `enclosedEmpty()` in `melt.js` is the regression guard, tested in `tests/melt.test.js`.
   - **Green outline spans the whole word**, incl. pre-existing committed letters, because it
     uses `preview().cells` (every cell of every word `analyze` reports), not just dropped tiles.
   - **Tall canvas for zoom-fill**: the canvas is as tall as the board area (`canvasHeight`), the

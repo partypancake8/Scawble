@@ -2,7 +2,7 @@
 // game instance and screen routing, and derives the theme. The game logic lives
 // entirely in src/core (the tested, portable engine/AI/controller).
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ActivityIndicator, Animated, useColorScheme, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Animated, useColorScheme, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Fredoka_400Regular, Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,14 +10,17 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { createGame } from './src/core/controller.js';
 import { seedForDate } from './src/core/daily.js';
 import WORDS_TEXT from './src/lexicon-data.js';
-import { getTheme } from './src/theme';
+import { getTheme, FONT, FONT_SEMI } from './src/theme';
 import { loadSettings, saveSettings, loadStats, recordResult } from './src/storage';
 import { setHaptics } from './src/haptics';
+import { SCENARIOS } from './src/core/dev/scenarios.js';
 
 import Home from './src/screens/Home';
 import Game from './src/screens/Game';
 import Analysis from './src/screens/Analysis';
 import Settings from './src/screens/Settings';
+import Sheet from './src/ui/Sheet';
+import Button from './src/ui/Button';
 
 function AppInner() {
   const insets = useSafeAreaInsets();
@@ -31,6 +34,7 @@ function AppInner() {
   const [game, setGame] = useState(null);
   const [review, setReview] = useState(null);
   const [finalScores, setFinalScores] = useState({ player: 0, bot: 0 });
+  const [devOpen, setDevOpen] = useState(false); // hidden dev/testing scenario picker
 
   // dictionary: split the inlined ENABLE list once (172k words, ~fast)
   const words = useMemo(() => WORDS_TEXT.split(/\r?\n/).filter(Boolean), []);
@@ -62,6 +66,13 @@ function AppInner() {
     setGame(g); setScreen('game');
   }, [words, difficulty]);
 
+  // Dev/testing: start a game rigged to a scenario (a guaranteed bingo, a crossing
+  // setup, etc.) so every feature can be demoed on demand. Opt-in via long-press.
+  const startDevGame = useCallback((sc) => {
+    const g = createGame(words, { seed: 'dev-' + sc.id, difficulty, rack: sc.rack, setup: sc.setup || null });
+    setGame(g); setDevOpen(false); setScreen('game');
+  }, [words, difficulty]);
+
   const onGameOver = useCallback((rev) => {
     const scores = { ...game.state.scores }; // snapshot: game.state is mutated in place
     setReview(rev); setFinalScores(scores);
@@ -87,7 +98,8 @@ function AppInner() {
         onSetDifficulty={setDifficulty}
         onPlayDaily={() => startGame(seedForDate(new Date()))}
         onPlayClassic={() => startGame('classic-' + Math.floor(Math.random() * 1e9).toString(36))}
-        onOpenSettings={() => { setSettingsFrom('home'); setScreen('settings'); }} />
+        onOpenSettings={() => { setSettingsFrom('home'); setScreen('settings'); }}
+        onDevMenu={() => setDevOpen(true)} />
     );
   } else if (screen === 'game') {
     body = (
@@ -121,6 +133,19 @@ function AppInner() {
       }}>
         {body}
       </Animated.View>
+
+      {/* hidden dev/testing scenario picker (long-press the Home wordmark) */}
+      <Sheet visible={devOpen} title="Dev testing" theme={theme} onClose={() => setDevOpen(false)}>
+        <Text style={{ fontFamily: FONT, color: theme.muted, marginBottom: 10, textAlign: 'center' }}>Rig a game to demo the juice.</Text>
+        {SCENARIOS.map((sc) => (
+          <Pressable key={sc.id} onPress={() => startDevGame(sc)}
+            style={{ padding: 13, borderRadius: 12, backgroundColor: theme.lineSoft, marginBottom: 8 }}>
+            <Text style={{ fontFamily: FONT_SEMI, color: theme.ink, fontSize: 15 }}>{sc.name}</Text>
+            <Text style={{ fontFamily: FONT, color: theme.muted, fontSize: 13 }}>{sc.desc}</Text>
+          </Pressable>
+        ))}
+        <Button title="Close" variant="ghost" theme={theme} onPress={() => setDevOpen(false)} />
+      </Sheet>
     </View>
   );
 }

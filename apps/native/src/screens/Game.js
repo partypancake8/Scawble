@@ -2,7 +2,7 @@
 // tap-to-place, blank picker, live preview, hint, swap, pass, move log, bot turn.
 // Game logic stays in the tested controller; this is the view + interaction.
 import React, { useState, useRef, useReducer, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, Animated, PanResponder, StyleSheet, useWindowDimensions, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, Animated, PanResponder, StyleSheet, useWindowDimensions, ScrollView } from 'react-native';
 import SkiaBoard from '../ui/SkiaBoard';
 import { PAD, GAP, boardWidth } from '../core/board/geometry.js';
 import { decideDrop, cellAtScreen, pinchView, panView } from '../core/board/interaction.js';
@@ -42,6 +42,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   const [rackOrder, setRackOrder] = useState(() => game.state.racks.player.map((t) => t.id));
   const [tapSelected, setTapSelected] = useState(null);
   const [hint, setHint] = useState(null);
+  const [hintUsed, setHintUsed] = useState(false); // Hint is one use per game
   const [swapMode, setSwapMode] = useState(false);
   const [swapSel, setSwapSel] = useState(new Set());
   const [busy, setBusy] = useState(false);
@@ -397,16 +398,15 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
     setRackOrder((prev) => { const a = [...prev]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; });
     H.tapLight();
   }
+  // Hint: one use per game. Shows the single best-scoring play for the current
+  // rack + board (a ghost of the top move from the move generator).
   function onHint() {
+    if (hintUsed) { setEvt({ text: 'Hint already used this game.', err: true }); return; }
     clearHint();
     const best = game.playerBest();
-    if (!best) { setEvt({ text: 'No legal moves — try Swap.', err: true }); return; }
-    setHint(best); setEvt({ text: `Try ${best.words.join(', ')} (+${best.score})`, err: false });
-  }
-  function onPass() {
-    const doPass = () => { recall(); game.pass(); afterPlayer(); };
-    if (Platform.OS === 'web') doPass();
-    else Alert.alert('Pass your turn?', '', [{ text: 'Cancel', style: 'cancel' }, { text: 'Pass', onPress: doPass }]);
+    if (!best) { setEvt({ text: 'No legal plays — try Swap.', err: true }); return; }
+    setHint(best); setHintUsed(true);
+    setEvt({ text: `Best play: ${best.words.join(', ')} (+${best.score})`, err: false });
   }
   function enterSwap() {
     if (game.state.bag.length < 1) { setEvt({ text: 'No tiles left to swap.', err: true }); return; }
@@ -487,6 +487,9 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
         </View>
       </View>
 
+      {/* hairline that fades in as the board zooms, keeping its top edge off the menu circles */}
+      <View pointerEvents="none" style={[styles.zoomLine, { backgroundColor: theme.line, opacity: Math.min(0.55, Math.max(0, (view.scale - 1.03) * 2)) }]} />
+
       {/* board — Skia (crisp at any zoom); one responder handles all interaction.
           The canvas is as tall as this area so zoom grows the board into the space
           above/below, not just the square footprint. */}
@@ -518,19 +521,14 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
           panFor={swapMode ? null : panFor} dragId={dragId} />
 
         {!swapMode ? (
-          <>
-            <View style={styles.controls}>
-              <Button icon="shuffle" stack title="Shuffle" testID="btn-shuffle" small theme={theme} disabled={!myTurn} onPress={shuffle} style={styles.ctl} />
-              <Button icon="recall" stack title="Recall" testID="btn-recall" small theme={theme} disabled={!myTurn} onPress={recall} style={styles.ctl} />
-              <Button icon="hint" stack title="Hint" testID="btn-hint" small theme={theme} disabled={!myTurn} onPress={onHint} style={styles.ctl} />
-              <Button icon="swap" stack title="Swap" testID="btn-swap" small theme={theme} disabled={!myTurn} onPress={enterSwap} style={styles.ctl} />
-              <Button icon="pass" stack title="Pass" testID="btn-pass" small theme={theme} disabled={!myTurn} onPress={onPass} style={styles.ctl} />
-            </View>
-            <View style={styles.submitRow}>
-              <Button icon="submit" title="Submit" testID="btn-submit" variant="submit" small theme={theme}
-                disabled={!(myTurn && draft.length && validNow)} onPress={onSubmit} style={styles.ctl} />
-            </View>
-          </>
+          <View style={styles.controls}>
+            <Button icon="shuffle" stack title="Shuffle" testID="btn-shuffle" small theme={theme} disabled={!myTurn} onPress={shuffle} style={styles.ctl} />
+            <Button icon="recall" stack title="Recall" testID="btn-recall" small theme={theme} disabled={!myTurn} onPress={recall} style={styles.ctl} />
+            <Button icon="hint" stack title="Hint" testID="btn-hint" small theme={theme} disabled={!myTurn || hintUsed} onPress={onHint} style={styles.ctl} />
+            <Button icon="swap" stack title="Swap" testID="btn-swap" small theme={theme} disabled={!myTurn} onPress={enterSwap} style={styles.ctl} />
+            <Button icon="submit" stack title="Submit" testID="btn-submit" variant="submit" small theme={theme}
+              disabled={!(myTurn && draft.length && validNow)} onPress={onSubmit} style={styles.ctl} />
+          </View>
         ) : (
           <View style={styles.controls}>
             <Button title={`Swap ${swapSel.size}`} variant="primary" small theme={theme} onPress={confirmSwap} style={styles.submitWide} />
@@ -608,6 +606,7 @@ const styles = StyleSheet.create({
   topbtns: { flexDirection: 'row', gap: 6, marginTop: 4 },
   iconbtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   boardArea: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
+  zoomLine: { height: 1.5, alignSelf: 'stretch', marginHorizontal: 28, marginTop: 6, borderRadius: 1 },
   bottom: { width: '100%', maxWidth: 600, alignSelf: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 8 },
   msgRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 24, justifyContent: 'center', flexWrap: 'wrap' },
   msg: { fontFamily: FONT, fontSize: 15, textAlign: 'center', flexShrink: 1 },

@@ -14,24 +14,36 @@ import {
   CornerPathEffect, useFont,
 } from '@shopify/react-native-skia';
 import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
-import { SIZE, GAP, boardWidth, cellOrigin } from '../core/board/geometry.js';
+import { SIZE, GAP, PAD, boardWidth, cellOrigin } from '../core/board/geometry.js';
+import { connectors } from '../core/board/melt.js';
 import { letterOf, VALUE } from '../core/engine/tiles.js';
 import { PREMIUM_BG, PREMIUM_LABEL } from '../theme';
 
 const keyOf = (r, c) => `${r},${c}`;
 
-// The melt outline: the SHARP union of every cell's square, drawn one pitch wide
-// (cell + GAP) so neighbouring cells overlap and the union is a clean, STEP-FREE
-// orthogonal polygon. A single `<CornerPathEffect r={cellR}>` at draw time then
-// rounds EVERY corner uniformly — convex (outer caps) AND concave (the inner
-// "armpits" where words cross) — so junctions merge smoothly with no seams,
-// per-corner logic, or fillet hacks. Used for both the fill and the green outline.
-function meltUnion(cells, cell) {
+// The melt: union each filled cell's EXACT rounded square (radius `r`, matching
+// the cell backgrounds) with a CONNECTOR rect bridging the GAP between every
+// orthogonally-adjacent FILLED pair (and only those, via the tested `connectors`
+// topology). Because empties are never bridged, an enclosed empty cell is never
+// part of the blob (fixes the old "filled-in courtyard" bug). The connectors
+// overlap `r` into each cell, so a straight word's edge is one continuous line;
+// the ONLY sharp corners left are genuine crossing "armpits", which a small
+// `<CornerPathEffect r={armpitR}>` then rounds. Used for the fill + green outline.
+function meltUnion(cells, cell, r) {
   let u = null;
+  const add = (p) => { if (!u) u = p; else u.op(p, PathOp.Union); };
   for (const { row, col } of cells) {
+    const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
     const p = Skia.Path.Make();
-    p.addRect({ x: cellOrigin(col, cell) - GAP / 2, y: cellOrigin(row, cell) - GAP / 2, width: cell + GAP, height: cell + GAP });
-    if (!u) u = p; else u.op(p, PathOp.Union);
+    p.addRRect(Skia.RRectXY(Skia.XYWHRect(x, y, cell, cell), r, r));
+    add(p);
+  }
+  for (const { a, dir } of connectors(cells)) {
+    const x = cellOrigin(a.col, cell), y = cellOrigin(a.row, cell);
+    const p = Skia.Path.Make();
+    if (dir === 'h') p.addRect({ x: x + cell - r, y, width: GAP + 2 * r, height: cell });
+    else p.addRect({ x, y: y + cell - r, width: cell, height: GAP + 2 * r });
+    add(p);
   }
   return u;
 }
@@ -60,9 +72,9 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   // pivots about the canvas centre. Game.js hit-tests with the same {cx,cy,oy}.
   const canvasH = canvasHeight && canvasHeight > size ? canvasHeight : size;
   const oy = (canvasH - size) / 2;
-  const letterFont = useFont(Fredoka_600SemiBold, cell * 0.56);
+  const letterFont = useFont(Fredoka_600SemiBold, cell * 0.64); // bigger tile letters
   const valueFont = useFont(Fredoka_600SemiBold, Math.max(8, cell * 0.26));
-  const premFont = useFont(Fredoka_600SemiBold, Math.max(7, cell * 0.3));
+  const premFont = useFont(Fredoka_600SemiBold, Math.max(9, cell * 0.44)); // bigger 3L/2W/etc labels
   const fontsReady = letterFont && valueFont && premFont;
 
   // The whole scene is memoized on its VISUAL inputs — NOT on `view`. During a
@@ -72,17 +84,17 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     if (!fontsReady) return null;
 
     const cellR = cell * 0.24;
-    // CornerPathEffect rounds a polygon corner with a flatter quadratic than a true
-    // RoundedRect arc, so at the SAME radius the melted union reads boxier/tighter
-    // than the rounded cells and rack tiles. Bump the melt+outline corner radius so
-    // the word-pill's fillet matches the tiles' roundness. (Cells/hint keep cellR.)
-    const meltR = cell * 0.42;
-    const lip = Math.max(1.5, cell * 0.055);
+    // Melt corner radii are now decoupled: `faceR` (convex) matches the cell
+    // squares exactly, and `armpitR` rounds ONLY the concave corners where words
+    // genuinely cross. Because the melt is a union of rounded cell rects +
+    // adjacency connectors (not oversized squares), enclosed empty cells are never
+    // filled and the corners no longer bloom (see core/board/melt.js).
+    const faceR = cell * 0.24;
+    const armpitR = cell * 0.16;
 
     const draftShown = (draft || []).filter((d) => d.tile.id !== dragId);
     const draftMap = new Map(draftShown.map((d) => [keyOf(d.row, d.col), d]));
     const hintMap = new Map((hint ? hint.placements : []).map((p) => [keyOf(p.row, p.col), p]));
-    const isFilled = (r, c) => !!(board[r] && board[r][c] && board[r][c].tile) || draftMap.has(keyOf(r, c));
 
     const center = (font, text, cx, cy) => {
       const w = font.getTextWidth(text);
@@ -115,16 +127,15 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
           const blank = committed ? committed.letter === '_' : d.blank;
           const label = committed ? letterOf(committed) : d.letter;
           const val = committed ? committed.value : (d.blank ? 0 : VALUE[d.letter]);
-          const lp = center(letterFont, label, x + cell / 2, y + cell / 2 - lip / 2);
+          const lp = center(letterFont, label, x + cell / 2, y + cell / 2);
           glyphs.push(
             <SkText key={`ltr${r}-${c}`} font={letterFont} text={label} x={lp.x} y={lp.y}
               color={blank ? theme.accent : theme.tileInk} />
           );
           if (val != null) {
-            const vw = valueFont.getTextWidth(String(val));
             glyphs.push(
               <SkText key={`val${r}-${c}`} font={valueFont} text={String(val)}
-                x={x + cell * 0.86 - vw} y={y + cell * 0.9 - lip} color="rgba(0,0,0,0.42)" />
+                x={x + cell * 0.13} y={y + cell * 0.32} color="rgba(0,0,0,0.42)" />
             );
           }
         } else if (hintMap.has(keyOf(r, c))) {
@@ -150,10 +161,9 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       }
     }
 
-    // melted tile faces: one step-free union per word, corner-rounded at draw time.
-    // The lip is the same union shifted down by `lip`, so a single soft edge follows
-    // the whole bottom contour (never per-cell) — the "one continuous tile-word" look.
-    const faceUnion = filled.length ? meltUnion(filled, cell) : null;
+    // melted tile faces: union of rounded cell rects + adjacency connectors,
+    // corner-rounded (armpits only) at draw time. Flat (no bottom lip / shadow).
+    const faceUnion = filled.length ? meltUnion(filled, cell, faceR) : null;
 
     // green outline traces the FULL valid word(s) — committed letters included —
     // by unioning every word cell the engine reported (validSet), not just the
@@ -162,26 +172,21 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     if (validSet && validSet.size) {
       const cells = [];
       for (const k of validSet) { const [r, c] = k.split(',').map(Number); cells.push({ row: r, col: c }); }
-      const u = meltUnion(cells, cell);
+      const u = meltUnion(cells, cell, faceR);
       if (u) outline = (
         <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)}>
-          <CornerPathEffect r={meltR} />
+          <CornerPathEffect r={armpitR} />
         </Path>
       );
     }
 
     return (
       <>
-        <RoundedRect x={0} y={0} width={size} height={size} r={18} color={theme.card} />
+        <RoundedRect x={0} y={0} width={size} height={size} r={cellR + PAD} color={theme.card} />
         {bg}
         {marks}
         {faceUnion && (
-          <>
-            <Group transform={[{ translateY: lip }]}>
-              <Path path={faceUnion} color={theme.tileLip}><CornerPathEffect r={meltR} /></Path>
-            </Group>
-            <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={meltR} /></Path>
-          </>
+          <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
         )}
         {glyphs}
         {outline}
@@ -210,10 +215,9 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   // Scale comes from the tested settleScale() curve, ticked by Game.
   const settleFx = (() => {
     if (!settle || !settle.cells || !settle.cells.length || !fontsReady) return null;
-    const meltR = cell * 0.42;
-    const lip = Math.max(1.5, cell * 0.055);
+    const faceR = cell * 0.24, armpitR = cell * 0.16;
     const cells = settle.cells.map((k) => { const [r, c] = k.split(',').map(Number); return { row: r, col: c }; });
-    const u = meltUnion(cells, cell);
+    const u = meltUnion(cells, cell, faceR);
     if (!u) return null;
     let sx = 0, sy = 0;
     for (const { row, col } of cells) { sx += cellOrigin(col, cell) + cell / 2; sy += cellOrigin(row, cell) + cell / 2; }
@@ -228,24 +232,19 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       const m = letterFont.getMetrics();
       glyphs.push(
         <SkText key={`sl${row}-${col}`} font={letterFont} text={label}
-          x={x + cell / 2 - w / 2} y={y + cell / 2 - lip / 2 - (m.ascent + m.descent) / 2}
+          x={x + cell / 2 - w / 2} y={y + cell / 2 - (m.ascent + m.descent) / 2}
           color={tile.letter === '_' ? theme.accent : theme.tileInk} />
       );
       if (tile.value != null) {
-        const vs = String(tile.value);
-        const vw = valueFont.getTextWidth(vs);
         glyphs.push(
-          <SkText key={`sv${row}-${col}`} font={valueFont} text={vs}
-            x={x + cell * 0.86 - vw} y={y + cell * 0.9 - lip} color="rgba(0,0,0,0.42)" />
+          <SkText key={`sv${row}-${col}`} font={valueFont} text={String(tile.value)}
+            x={x + cell * 0.13} y={y + cell * 0.32} color="rgba(0,0,0,0.42)" />
         );
       }
     }
     return (
       <Group origin={{ x: ox, y: oyc }} transform={[{ scale: settle.scale }]}>
-        <Group transform={[{ translateY: lip }]}>
-          <Path path={u} color={theme.tileLip}><CornerPathEffect r={meltR} /></Path>
-        </Group>
-        <Path path={u} color={theme.tileFace}><CornerPathEffect r={meltR} /></Path>
+        <Path path={u} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
         {glyphs}
       </Group>
     );

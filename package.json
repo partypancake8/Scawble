@@ -5,7 +5,7 @@
   "type": "module",
   "description": "A single-player tile word game — the greatest tile word game ever made (see docs/NORTH-STAR.md).",
   "scripts": {
-    "test": "node tests/engine.test.js && node tests/ai.test.js && node tests/board.test.js && node tests/fx.test.js && node tests/audio.test.js",
+    "test": "node tests/engine.test.js && node tests/ai.test.js && node tests/board.test.js && node tests/fx.test.js && node tests/audio.test.js && node tests/melt.test.js && node tests/dev.test.js",
     "smoke": "node tests/dom-smoke.mjs",
     "build": "node scripts/build-standalone.mjs",
     "build-sfx": "node scripts/build-sfx.mjs",

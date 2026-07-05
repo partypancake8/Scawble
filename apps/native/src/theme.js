@@ -14,7 +14,9 @@ export const DARK = {
   ink: '#ECEFEA', inkSoft: '#C4CCC9', muted: '#7E8987', line: '#2C3A38', lineSoft: '#233230',
   accent: '#FF8B7D', accentPress: '#F07C6E', accent2: '#4FC2B4', good: '#4ECB9B', warn: '#E8A13A',
   tileFace: '#F4EEE1', tileInk: '#33313A', tileLip: '#D8CFB9', tileShadow: 'rgba(0,0,0,0.42)',
-  dl: '#2E4E58', tl: '#3A6675', dw: '#5E3A40', tw: '#6E4438', star: '#5E3A40', premInk: '#CFE0E6',
+  // poppier premium squares on the dark base: bright coral triple-word, vivid teal
+  // letters, rich rose double-word; near-white labels for punch.
+  dl: '#357C8C', tl: '#3FA6BC', dw: '#B45266', tw: '#E06A4E', star: '#8A4048', premInk: '#F4F7F5',
 };
 
 export function getTheme(scheme) {

@@ -3,7 +3,7 @@
 // an equal number of final turns before the game ends. See PRD §07.
 
 import { makeBoard } from './board.js';
-import { makeBag, draw, makeRng, RACK_SIZE } from './tiles.js';
+import { makeBag, draw, dealRack, makeRng, RACK_SIZE } from './tiles.js';
 import { validate } from './rules.js';
 import { scoreMove } from './score.js';
 
@@ -21,10 +21,13 @@ import { scoreMove } from './score.js';
  * @property {?number} finalCountdown  plies left once the bag emptied
  */
 
-/** Start a new game. Player moves first. */
-export function newGame(seed = 'default') {
+/** Start a new game. Player moves first.
+ *  `opts.rack` (dev/scenario only) rigs the player's opening tiles to specific
+ *  letters, pulled from the seeded bag before the bot draws. When omitted the
+ *  deal is the original code path, so the daily stays reproducible. */
+export function newGame(seed = 'default', { rack = null } = {}) {
   const bag = makeBag(seed);
-  const player = draw(bag, RACK_SIZE);
+  const player = rack ? dealRack(bag, rack) : draw(bag, RACK_SIZE);
   const bot = draw(bag, RACK_SIZE);
   return {
     board: makeBoard(),
@@ -38,6 +41,19 @@ export function newGame(seed = 'default') {
     passes: 0,
     finalCountdown: null,
   };
+}
+
+/** Dev/scenario scaffolding: pre-place a committed word on the board directly
+ *  (no scoring, no turn change). Tiles come from the bag so conservation holds.
+ *  Not used by normal play. `dir` is 'H' (across) or 'V' (down). */
+export function placeCommitted(state, { word, row, col, dir = 'H' }) {
+  const tiles = dealRack(state.bag, word);
+  tiles.forEach((tile, i) => {
+    const r = dir === 'H' ? row : row + i;
+    const c = dir === 'H' ? col + i : col;
+    state.board[r][c].tile = tile;
+  });
+  return state;
 }
 
 const other = (who) => (who === 'player' ? 'bot' : 'player');
