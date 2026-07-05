@@ -72,6 +72,11 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     if (!fontsReady) return null;
 
     const cellR = cell * 0.24;
+    // CornerPathEffect rounds a polygon corner with a flatter quadratic than a true
+    // RoundedRect arc, so at the SAME radius the melted union reads boxier/tighter
+    // than the rounded cells and rack tiles. Bump the melt+outline corner radius so
+    // the word-pill's fillet matches the tiles' roundness. (Cells/hint keep cellR.)
+    const meltR = cell * 0.42;
     const lip = Math.max(1.5, cell * 0.055);
 
     const draftShown = (draft || []).filter((d) => d.tile.id !== dragId);
@@ -160,7 +165,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       const u = meltUnion(cells, cell);
       if (u) outline = (
         <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)}>
-          <CornerPathEffect r={cellR} />
+          <CornerPathEffect r={meltR} />
         </Path>
       );
     }
@@ -173,9 +178,9 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         {faceUnion && (
           <>
             <Group transform={[{ translateY: lip }]}>
-              <Path path={faceUnion} color={theme.tileLip}><CornerPathEffect r={cellR} /></Path>
+              <Path path={faceUnion} color={theme.tileLip}><CornerPathEffect r={meltR} /></Path>
             </Group>
-            <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={cellR} /></Path>
+            <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={meltR} /></Path>
           </>
         )}
         {glyphs}
