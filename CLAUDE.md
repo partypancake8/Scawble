@@ -39,7 +39,7 @@ logic, and keep it in sync with `src/engine/` if a rule ever changes.
 ## Architecture
 
 - **`src/`** — portable, pure, **zero-dependency** game logic. Runs identically in web + RN.
-  33 engine + 16 AI + 78 board + 24 fx + 28 audio + 13 melt + 24 dev assertions (`npm test`). NEVER add UI/DOM/RN deps here.
+  33 engine + 16 AI + 78 board + 24 fx + 28 audio + 13 melt + 24 dev + 14 meltmask assertions (`npm test`). NEVER add UI/DOM/RN deps here.
   - `src/engine/` — tiles · board · score · rules · state (Crossplay-flavored rules, rebalanced tile values, fair endgame)
   - `src/ai/` — generate (trie move generator) · bot (4 difficulty tiers, bestMove)
   - `src/lexicon/` — swappable word source (ENABLE, 172,823 words)
@@ -85,16 +85,21 @@ score chip, drag target ring) and on the user's iPhone.
   vector shapes inside one `<Group transform origin=center>`; zoom scales the vector scene so
   it stays print-sharp (no rasterization blur). The center star is a drawn path (the `✦` glyph
   isn't in Fredoka). Two design points that took device iteration to get right:
-  - **Melt = union of rounded cell rects + adjacency connectors** (`meltUnion` in SkiaBoard,
-    topology in `src/board/melt.js`). Each filled cell is an EXACT rounded square (radius `faceR`
-    = 0.24·cell, matching the cell backgrounds); a connector rect bridges the GAP only between
-    orthogonally-adjacent FILLED cells (via the tested `connectors()`), so a straight word is one
-    clean pill. Because empties are never bridged, an ENCLOSED empty cell is never coloured (this
-    replaced an earlier "union of oversized cell+GAP squares + one big `CornerPathEffect`" that
-    pinched small holes shut and filled courtyards, and blooed the corners). A small
-    `<CornerPathEffect r={armpitR}>` (0.16·cell) then rounds ONLY the genuine crossing "armpits".
-    Tiles are FLAT (no lip/bottom shadow); the SAME `meltUnion` builds the green valid-word outline.
-    `enclosedEmpty()` in `melt.js` is the regression guard, tested in `tests/melt.test.js`.
+  - **Melt = ONE SDF "metaball" runtime shader** (`apps/native/src/ui/meltShader.js`, integrated in
+    SkiaBoard). The board is a signed distance field: a rounded-box SDF per FILLED cell, smooth-
+    unioned (`smin`) with a single "melt amount" knob `K_FACTOR` (~0.34·cell). Correct by
+    construction — straight runs fuse into a clean pill, crossings round uniformly, and enclosed
+    EMPTY cells stay OPEN holes (an empty cell adds no field, and `k` is kept below the cross-cell
+    gap, so it can't fill). Board state is fed as a tiny 15×15 occupancy image sampled (nearest) in
+    the shader; each pixel loops only a fixed 5×5 neighbourhood. Rendered in content space with
+    `u_aa = 0.7/zoomScale` so the isosurface stays print-sharp at any zoom (no rasterization blur).
+    Fill+darker-border and the green valid-word outline are two passes of the same shader over their
+    masks. Pure mask packing (`src/board/meltmask.js`) is tested in `tests/meltmask.test.js`.
+    (This replaced a long line of hand-rolled vector approaches — oversized-square union +
+    `CornerPathEffect`, then rounded-rects + connectors — that all fought notches, blobby corners,
+    or filled-in courtyards. `src/board/melt.js` connectors/`enclosedEmpty` are now unused by the
+    renderer but kept as the documented hole-topology invariant + `tests/melt.test.js`. A per-cell
+    RoundedRect fallback covers the never-seen case of the shader failing to compile.)
   - **Green outline spans the whole word**, incl. pre-existing committed letters, because it
     uses `preview().cells` (every cell of every word `analyze` reports), not just dropped tiles.
   - **Tall canvas for zoom-fill**: the canvas is as tall as the board area (`canvasHeight`), the
