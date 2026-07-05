@@ -39,19 +39,25 @@ logic, and keep it in sync with `src/engine/` if a rule ever changes.
 ## Architecture
 
 - **`src/`** — portable, pure, **zero-dependency** game logic. Runs identically in web + RN.
-  33 engine + 16 AI + 78 board-interaction assertions. NEVER add UI/DOM/RN deps here.
+  33 engine + 16 AI + 78 board + 24 fx + 28 audio assertions (`npm test`). NEVER add UI/DOM/RN deps here.
   - `src/engine/` — tiles · board · score · rules · state (Crossplay-flavored rules, rebalanced tile values, fair endgame)
   - `src/ai/` — generate (trie move generator) · bot (4 difficulty tiers, bestMove)
   - `src/lexicon/` — swappable word source (ENABLE, 172,823 words)
   - `src/board/` — pure interaction math: `geometry.js` (single-source 15×15 layout) +
     `interaction.js` (zoom/pan-aware screen→cell hit-test + place/move/recall/none drop rules).
     The Skia/RN board is a thin view over this. Exhaustively tested in `tests/board.test.js`.
+  - `src/fx/` — pure celebration math: `confetti.js` (deterministic seeded particle burst) +
+    `settle.js` (commit "land big, ease to rest" curve). Tested in `tests/fx.test.js`.
+  - `src/audio/` — pure sound synthesis: `wav.js` (16-bit PCM WAV bytes) + `sfx.js` (event→tone
+    table + `pickSound`). Tested in `tests/audio.test.js`; assets built via `npm run build-sfx`.
 - **`apps/prototype/`** — original web app (reference implementation of every feature).
 - **`apps/native/`** — the iOS app (Expo/RN). Reuses `src/` **unchanged**, copied to
   `apps/native/src/core/` (re-copy on change; don't fork the core).
   - `src/screens/` — Home · Game · Analysis · Settings
-  - `src/ui/` — Tile · **SkiaBoard** · Rack · Button · Sheet · Icon · AnimatedNumber
+  - `src/ui/` — Tile · **SkiaBoard** · Rack · Button · Sheet · Icon · AnimatedNumber · Confetti
     (the RN-View `Board.js`/`ZoomableBoard.js` were deleted — Skia replaced them)
+  - `src/sound.js` — SFX playback (`expo-audio`, guarded so a missing audio runtime no-ops);
+    `assets/sfx/*.wav` are generated from `src/audio/` by `npm run build-sfx`
   - `src/core/` — the copied portable core (incl. `core/board/{geometry,interaction}.js`)
   - `src/lexicon-data.js` — ENABLE list inlined (~1.9MB)
   - `src/theme.js` — Soft & Cute design tokens (ported from prototype `style.css`)
@@ -60,8 +66,12 @@ logic, and keep it in sync with `src/engine/` if a rule ever changes.
 5 screens, tap-to-place, drag-and-drop (rack tiles + placed tiles + board→board), pinch-zoom +
 pan (crisp Skia board), tile merge/melt, live score pill, bottom-docked controls, Ionicons icon
 system (`src/ui/Icon.js`), screen transitions, haptics, blank picker, hint, swap, move log,
-ScawBot analysis. Playable on device via Expo Go — validated end-to-end on the iOS simulator
-(render, tap-place, drag, melt, valid outline, commit→bot loop) and on the user's iPhone.
+ScawBot analysis. **Stage 1 "Juice & Feel" (DONE):** sound effects (`expo-audio`, wired to the
+Sound toggle, synthesized from `src/audio/`), bingo confetti, a rising "+N" score chip, a
+tile-settle pop on commit, and a drag target-cell highlight (the dragged tile now lifts above the
+finger so that target ring stays visible). Playable on device via Expo Go — validated end-to-end
+on the iOS simulator (render, tap-place, drag, melt, valid outline, commit→bot loop, settle,
+score chip, drag target ring) and on the user's iPhone.
 
 ## ✅ Skia board rebuild (DONE) — how it works
 - **Pure math** (`src/board/{geometry,interaction}.js`, tested in `tests/board.test.js`,
@@ -95,8 +105,10 @@ ScawBot analysis. Playable on device via Expo Go — validated end-to-end on the
     a new game; Fast Refresh alone keeps the old `useRef` responder.
 
 ## 🚧 Next / polish (do these TDD)
-1. **Merge/melt "settle" animation** — tiles currently melt instantly; add a spring nudge as a
-   word forms (needs animating the Skia face rects; the static melt already ships).
+1. ✅ **Merge/melt "settle" animation (DONE, Stage 1).** On commit the just-played word lands
+   slightly enlarged and eases to rest via a tested curve (`src/fx/settle.js`), drawn as a scaled
+   Skia overlay in `SkiaBoard.js` (kept out of the memoized scene). Shipped with the rest of the
+   Stage 1 juice (sound, confetti, +N chip, drag target ring).
 2. **Board accessibility** — the Skia canvas has no per-cell a11y nodes (the old RN Pressables
    did). VoiceOver users can't navigate cells; add an a11y overlay for the App Store bar.
 3. **Opening rack should never be all consonants (or all vowels).** `newGame` (`src/engine/state.js`)

@@ -13,8 +13,11 @@ import Button from '../ui/Button';
 import Sheet from '../ui/Sheet';
 import AnimatedNumber from '../ui/AnimatedNumber';
 import Icon from '../ui/Icon';
+import Confetti from '../ui/Confetti';
 import { FONT, FONT_SEMI } from '../theme';
 import * as H from '../haptics';
+import { playSfx, initSound } from '../sound';
+import { settleScale, settleDone } from '../core/fx/settle.js';
 
 const key = (r, c) => `${r},${c}`;
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -28,7 +31,7 @@ function IconBtn({ icon, onPress, theme, testID }) {
 }
 
 export default function Game({ game, settings, theme, onExit, onOpenSettings, onGameOver }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   // `rev`/`bump`: the controller MUTATES game.state in place (commit, bot move), so
   // React never sees a prop change. bump() after each move increments `rev`, and
   // `rev` is passed to SkiaBoard so its scene useMemo re-runs (busts the memo).
@@ -50,12 +53,52 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   const shakeX = useRef(new Animated.Value(0)).current;
   const reduced = settings.motion === 'off';
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  // --- Stage 1 juice: sound, confetti, rising score chip, settle pop, drag target ---
+  const [celebrate, setCelebrate] = useState(0);       // confetti burst trigger (counter)
+  const [settle, setSettle] = useState(null);          // { cells:[...], scale } settle pop
+  const [dropTarget, setDropTarget] = useState(null);  // {row,col} highlighted under a drag
+  const dropTargetRef = useRef(null);
+  const [chip, setChip] = useState(null);              // { n, bingo } rising +score chip
+  const chipY = useRef(new Animated.Value(0)).current;
+  const chipOp = useRef(new Animated.Value(0)).current;
+  const settleRaf = useRef(null);
+  const sfx = (name) => playSfx(name, settings.sound);
+
+  useEffect(() => {
+    initSound();
+    return () => { clearTimeout(timerRef.current); if (settleRaf.current) cancelAnimationFrame(settleRaf.current); };
+  }, []);
 
   function shake() {
     if (reduced) return;
     shakeX.setValue(0);
     Animated.sequence([-6, 6, -4, 4, 0].map((v) => Animated.timing(shakeX, { toValue: v, duration: 45, useNativeDriver: true }))).start();
+  }
+
+  // the just-committed word "settles": lands a touch enlarged, eases to rest (tested curve)
+  function runSettle(cells) {
+    if (reduced || !cells.length) return;
+    const t0 = Date.now();
+    setSettle({ cells, scale: 1.12 });
+    if (settleRaf.current) cancelAnimationFrame(settleRaf.current);
+    const step = () => {
+      const el = Date.now() - t0;
+      if (settleDone(el)) { setSettle(null); settleRaf.current = null; return; }
+      setSettle({ cells, scale: settleScale(el) });
+      settleRaf.current = requestAnimationFrame(step);
+    };
+    settleRaf.current = requestAnimationFrame(step);
+  }
+
+  // a "+N" chip floats up and fades over the board on commit
+  function flyScore(n, bingo) {
+    if (reduced) return;
+    setChip({ n, bingo });
+    chipY.setValue(0); chipOp.setValue(1);
+    Animated.parallel([
+      Animated.timing(chipY, { toValue: -64, duration: 850, useNativeDriver: true }),
+      Animated.timing(chipOp, { toValue: 0, duration: 850, useNativeDriver: true }),
+    ]).start(({ finished }) => { if (finished) setChip(null); });
   }
 
   // ---- sizing ----
@@ -119,7 +162,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
     if (!isPlayer || busy) return;
     clearHint();
     setTapSelected((s) => (s === tile.id ? null : tile.id));
-    H.tapLight();
+    H.tapLight(); sfx('tick');
   }
   function onCellPress(r, c) {
     if (busy || swapMode || !isPlayer) return;
@@ -137,7 +180,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   function commitDraft(tile, r, c, letter, blank) {
     setDraft((d) => [...d, { tile, row: r, col: c, letter, blank }]);
     setTapSelected(null);
-    H.tapMedium();
+    H.tapMedium(); sfx('place');
   }
   function resolveBlank(letter) {
     const pb = pendingBlank; setPendingBlank(null);
@@ -199,11 +242,31 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
       case 'place': placeTile(tile, decision.row, decision.col); break;   // handles the blank picker
       case 'move':
         setDraft((d) => d.map((x) => (x.tile.id === tile.id ? { ...x, row: decision.row, col: decision.col } : x)));
-        H.tapMedium(); break;
+        H.tapMedium(); sfx('place'); break;
       case 'recall': setDraft((d) => d.filter((x) => x.tile.id !== tile.id)); H.tapLight(); break;
       default: break;   // 'none' — rack tile bounces back, board tile stays put
     }
   }
+
+  // Highlight the empty cell a dragged tile would drop into. Throttled to actual
+  // cell changes so a fast drag doesn't spam setState (and the highlight is a
+  // cheap SkiaBoard overlay, not part of its memoized scene).
+  function hoverCell(px, py, tileId) {
+    const L = latest.current;
+    if (!dragState.rect) return;
+    const hit = cellAtScreen(px, py, L.cell, dragState.rect, viewRef.current, L.layout);
+    let next = null;
+    if (hit) {
+      const occ = !!game.state.board[hit.row][hit.col].tile ||
+        L.draft.some((d) => d.row === hit.row && d.col === hit.col && d.tile.id !== tileId);
+      next = occ ? null : hit;
+    }
+    const cur = dropTargetRef.current;
+    if ((next && (!cur || cur.row !== next.row || cur.col !== next.col)) || (!next && cur)) {
+      dropTargetRef.current = next; setDropTarget(next);
+    }
+  }
+  const clearHover = () => { if (dropTargetRef.current) { dropTargetRef.current = null; setDropTarget(null); } };
 
   // keep the board box's window rect + screen origin fresh (measured on layout and
   // re-measured on each gesture). We DON'T null the rect first: the board never
@@ -217,7 +280,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   // handlers that read live state, reached from the once-created responders below
   // through a ref so they never see a stale render's closure.
   const hRef = useRef({});
-  hRef.current = { onCellPress, onDraftPress, handleDrop, easeToRest };
+  hRef.current = { onCellPress, onDraftPress, handleDrop, easeToRest, hoverCell, clearHover, sfx };
 
   // rack tiles keep their own responder: drag onto the board, or tap to select.
   function panFor(tile) {
@@ -229,14 +292,17 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => { dragState.moved = false; measureForDrag(); },
       onPanResponderMove: (e, g) => {
-        if (!dragState.moved && Math.hypot(g.dx, g.dy) > 8) { dragState.moved = true; clearHint(); H.tapLight(); setDragTile(tile); }
-        if (dragState.moved) dragXY.setValue({ x: e.nativeEvent.pageX - dragState.off.x, y: e.nativeEvent.pageY - dragState.off.y });
+        if (!dragState.moved && Math.hypot(g.dx, g.dy) > 8) { dragState.moved = true; clearHint(); H.tapLight(); hRef.current.sfx('pickup'); setDragTile(tile); }
+        if (dragState.moved) {
+          dragXY.setValue({ x: e.nativeEvent.pageX - dragState.off.x, y: e.nativeEvent.pageY - dragState.off.y });
+          hRef.current.hoverCell(e.nativeEvent.pageX, e.nativeEvent.pageY, tile.id);
+        }
       },
       onPanResponderRelease: (e) => {
         if (!dragState.moved) { onTilePress(tile); return; }
-        setDragTile(null); hRef.current.handleDrop(tile, e.nativeEvent.pageX, e.nativeEvent.pageY);
+        setDragTile(null); hRef.current.clearHover(); hRef.current.handleDrop(tile, e.nativeEvent.pageX, e.nativeEvent.pageY);
       },
-      onPanResponderTerminate: () => { setDragTile(null); dragState.moved = false; },
+      onPanResponderTerminate: () => { setDragTile(null); dragState.moved = false; hRef.current.clearHover(); },
     });
     return pans[tile.id];
   }
@@ -293,8 +359,11 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
           return;
         }
         if (gstate.mode === 'tile') {
-          if (!gstate.moved && Math.hypot(g.dx, g.dy) > 8) { gstate.moved = true; clearHint(); H.tapLight(); setDragTile(gstate.tile); }
-          if (gstate.moved) dragXY.setValue({ x: e.nativeEvent.pageX - dragState.off.x, y: e.nativeEvent.pageY - dragState.off.y });
+          if (!gstate.moved && Math.hypot(g.dx, g.dy) > 8) { gstate.moved = true; clearHint(); H.tapLight(); hRef.current.sfx('pickup'); setDragTile(gstate.tile); }
+          if (gstate.moved) {
+            dragXY.setValue({ x: e.nativeEvent.pageX - dragState.off.x, y: e.nativeEvent.pageY - dragState.off.y });
+            hRef.current.hoverCell(e.nativeEvent.pageX, e.nativeEvent.pageY, gstate.tile.id);
+          }
         } else if (gstate.mode === 'board') {
           if (Math.hypot(g.dx, g.dy) > 6) gstate.moved = true;
           if (gstate.canPan) applyView(panView(gstate.start, g.dx, g.dy, sz));
@@ -303,7 +372,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
       onPanResponderRelease: (e) => {
         if (gstate.mode === 'tile') {
           if (!gstate.moved) hRef.current.onDraftPress(gstate.cell.row, gstate.cell.col);
-          else { setDragTile(null); hRef.current.handleDrop(gstate.tile, e.nativeEvent.pageX, e.nativeEvent.pageY); }
+          else { setDragTile(null); hRef.current.clearHover(); hRef.current.handleDrop(gstate.tile, e.nativeEvent.pageX, e.nativeEvent.pageY); }
         } else if (gstate.mode === 'board') {
           if (!gstate.moved && gstate.tapCell) hRef.current.onCellPress(gstate.tapCell.row, gstate.tapCell.col);
           else if (viewRef.current.scale <= 1.05) hRef.current.easeToRest();
@@ -312,7 +381,7 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
         }
         gstate.mode = null;
       },
-      onPanResponderTerminate: () => { setDragTile(null); gstate.mode = null; },
+      onPanResponderTerminate: () => { setDragTile(null); gstate.mode = null; hRef.current.clearHover(); },
     })
   ).current;
 
@@ -358,10 +427,14 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
     if (!draft.length || !validNow || busy) return;
     clearHint();
     const res = game.commit(placements);
-    if (!res.ok) { setEvt({ text: res.error, err: true }); H.warn(); shake(); return; }
-    setDraft([]); setTapSelected(null); syncRack();
+    if (!res.ok) { setEvt({ text: res.error, err: true }); H.warn(); sfx('invalid'); shake(); return; }
+    const cells = res.move.placements.map((p) => key(p.row, p.col));
+    setDraft([]); setTapSelected(null); clearHover(); syncRack();
     setEvt({ text: `${res.move.words.join(', ')} +${res.move.score}${res.move.isBingo ? ' · BINGO!' : ''}`, err: false });
-    res.move.isBingo ? H.success() : H.tapMedium();
+    if (res.move.isBingo) { H.success(); sfx('bingo'); if (!reduced) setCelebrate((n) => n + 1); }
+    else { H.tapMedium(); sfx('score'); }
+    flyScore(res.move.score, res.move.isBingo);
+    runSettle(cells);
     afterPlayer();
   }
 
@@ -423,7 +496,8 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
             {...boardPan.panHandlers}
             style={{ width: size, height: canvasH }}>
             <SkiaBoard board={game.state.board} draft={draft} hint={hint} validSet={validSet}
-              cell={cell} theme={theme} view={view} dragId={dragId} rev={rev} canvasHeight={canvasH} />
+              cell={cell} theme={theme} view={view} dragId={dragId} rev={rev} canvasHeight={canvasH}
+              settle={settle} target={dropTarget} />
           </View>
         </Animated.View>
       </View>
@@ -498,11 +572,25 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
       {/* floating tile while dragging */}
       {dragTile && (
         <Animated.View pointerEvents="none" style={[styles.floating, {
-          transform: [{ translateX: Animated.subtract(dragXY.x, rackSize * 0.58) }, { translateY: Animated.subtract(dragXY.y, rackSize * 0.58) }],
+          // Lift the tile ABOVE the finger so the drop-target cell (and its accent
+          // ring) stays visible under your fingertip instead of being covered.
+          transform: [{ translateX: Animated.subtract(dragXY.x, rackSize * 0.58) }, { translateY: Animated.subtract(dragXY.y, rackSize * 1.5) }],
         }]}>
           <Tile label={floatLabel} value={floatVal} blank={floatBlank} size={rackSize * 1.15} theme={theme} fontScale={0.52} />
         </Animated.View>
       )}
+
+      {/* rising "+N" chip on commit */}
+      {chip && (
+        <Animated.View pointerEvents="none" style={[styles.chipWrap, { transform: [{ translateY: chipY }], opacity: chipOp }]}>
+          <View style={[styles.chipPill, { backgroundColor: chip.bingo ? theme.accent : theme.good }]}>
+            <Text style={styles.chipTxt}>+{chip.n}{chip.bingo ? '  BINGO!' : ''}</Text>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* celebratory confetti on a bingo */}
+      <Confetti trigger={celebrate} x={width / 2} y={height * 0.42} width={width} height={height} />
     </View>
   );
 }
@@ -533,4 +621,7 @@ const styles = StyleSheet.create({
   letter: { width: 46, height: 46, borderRadius: 12, borderWidth: 1.5, borderBottomWidth: 3, alignItems: 'center', justifyContent: 'center' },
   logrow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10, borderRadius: 10, borderLeftWidth: 3, marginBottom: 5 },
   floating: { position: 'absolute', left: 0, top: 0, zIndex: 300, elevation: 24 },
+  chipWrap: { position: 'absolute', left: 0, right: 0, top: '40%', alignItems: 'center', zIndex: 250 },
+  chipPill: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, elevation: 8 },
+  chipTxt: { fontFamily: FONT_SEMI, fontSize: 22, color: '#fff' },
 });

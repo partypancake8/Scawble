@@ -53,7 +53,7 @@ function fourPointStarPath(cx, cy, outer, inner) {
   return p;
 }
 
-export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, view, dragId, rev, canvasHeight }) {
+export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, view, dragId, rev, canvasHeight, settle, target }) {
   const size = boardWidth(cell);
   // The canvas can be TALLER than the board so zoom has room to grow into the
   // space above/below. The board is centred vertically (offset oy); the zoom
@@ -190,6 +190,67 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board, draft, hint, validSet, dragId, cell, theme, rev, fontsReady, letterFont, valueFont, premFont, size]);
 
+  // ---- cheap per-frame overlays (kept OUT of the memoized scene above so a drag
+  // hover or a settle tick doesn't rebuild all 225 cells). ----
+
+  // Accent outline on the cell a dragged tile would drop into. `target` = {row,col}.
+  const targetFx = target
+    ? (() => {
+        const r = cell * 0.24;
+        const x = cellOrigin(target.col, cell), y = cellOrigin(target.row, cell);
+        return (
+          <RoundedRect x={x + 1.5} y={y + 1.5} width={cell - 3} height={cell - 3} r={r}
+            color={theme.accent} style="stroke" strokeWidth={Math.max(2, cell * 0.08)} opacity={0.92} />
+        );
+      })()
+    : null;
+
+  // The just-committed word's "settle" pop: redraw those cells as one melted group
+  // scaled (>= 1) about their centroid, so they land enlarged and ease to rest.
+  // Scale comes from the tested settleScale() curve, ticked by Game.
+  const settleFx = (() => {
+    if (!settle || !settle.cells || !settle.cells.length || !fontsReady) return null;
+    const meltR = cell * 0.42;
+    const lip = Math.max(1.5, cell * 0.055);
+    const cells = settle.cells.map((k) => { const [r, c] = k.split(',').map(Number); return { row: r, col: c }; });
+    const u = meltUnion(cells, cell);
+    if (!u) return null;
+    let sx = 0, sy = 0;
+    for (const { row, col } of cells) { sx += cellOrigin(col, cell) + cell / 2; sy += cellOrigin(row, cell) + cell / 2; }
+    const ox = sx / cells.length, oyc = sy / cells.length;
+    const glyphs = [];
+    for (const { row, col } of cells) {
+      const tile = board[row] && board[row][col] && board[row][col].tile;
+      if (!tile) continue;
+      const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
+      const label = letterOf(tile);
+      const w = letterFont.getTextWidth(label);
+      const m = letterFont.getMetrics();
+      glyphs.push(
+        <SkText key={`sl${row}-${col}`} font={letterFont} text={label}
+          x={x + cell / 2 - w / 2} y={y + cell / 2 - lip / 2 - (m.ascent + m.descent) / 2}
+          color={tile.letter === '_' ? theme.accent : theme.tileInk} />
+      );
+      if (tile.value != null) {
+        const vs = String(tile.value);
+        const vw = valueFont.getTextWidth(vs);
+        glyphs.push(
+          <SkText key={`sv${row}-${col}`} font={valueFont} text={vs}
+            x={x + cell * 0.86 - vw} y={y + cell * 0.9 - lip} color="rgba(0,0,0,0.42)" />
+        );
+      }
+    }
+    return (
+      <Group origin={{ x: ox, y: oyc }} transform={[{ scale: settle.scale }]}>
+        <Group transform={[{ translateY: lip }]}>
+          <Path path={u} color={theme.tileLip}><CornerPathEffect r={meltR} /></Path>
+        </Group>
+        <Path path={u} color={theme.tileFace}><CornerPathEffect r={meltR} /></Path>
+        {glyphs}
+      </Group>
+    );
+  })();
+
   return (
     // pointerEvents="none" is REQUIRED: the Skia Canvas otherwise swallows touches,
     // so the board's PanResponder in Game.js (which uses capture handlers) never
@@ -198,6 +259,8 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       <Group transform={[{ translateX: view.tx }, { translateY: view.ty }, { scale: view.scale }]} origin={{ x: size / 2, y: canvasH / 2 }}>
         <Group transform={[{ translateY: oy }]}>
           {content}
+          {targetFx}
+          {settleFx}
         </Group>
       </Group>
     </Canvas>
