@@ -69,7 +69,7 @@ function AppInner() {
   // Dev/testing: start a game rigged to a scenario (a guaranteed bingo, a crossing
   // setup, etc.) so every feature can be demoed on demand. Opt-in via long-press.
   const startDevGame = useCallback((sc) => {
-    const g = createGame(words, { seed: 'dev-' + sc.id, difficulty, rack: sc.rack, setup: sc.setup || null, autoPlay: sc.autoPlay || false });
+    const g = createGame(words, { seed: 'dev-' + sc.id, difficulty, rack: sc.rack, setup: sc.setup || null, autoPlay: sc.autoPlay || false, autoDemo: sc.autoDemo || false });
     setGame(g); setDevOpen(false); setScreen('game');
   }, [words, difficulty]);
 

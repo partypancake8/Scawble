@@ -72,11 +72,12 @@ const eq = (a, b, m) => (JSON.stringify(a) === JSON.stringify(b) ? passed++ : (f
   ok(SCENARIOS.length >= 2, 'at least two scenarios defined');
   ok(scenarioById('bingo').rack === 'RETINAS', 'scenarioById finds the bingo scenario');
   ok(scenarioById('nope').id === SCENARIOS[0].id, 'scenarioById falls back to the first');
-  for (const sc of SCENARIOS) {
+  for (const sc of SCENARIOS.filter((s) => s.rack)) {
     let dealable = true;
     try { dealRack(makeBag('s'), sc.rack); } catch { dealable = false; }
     ok(dealable, `scenario '${sc.id}' rack is dealable from a fresh bag`);
   }
+  ok(SCENARIOS.some((s) => s.autoDemo), 'an auto-play demo scenario exists');
 }
 
 console.log(`\nScawble dev tests: ${passed} passed, ${failed} failed`);

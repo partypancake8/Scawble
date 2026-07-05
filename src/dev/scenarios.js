@@ -27,6 +27,12 @@ export const SCENARIOS = [
     desc: 'Two blanks in the rack (test the blank picker); one Hint reveals the best play.',
     rack: 'AE__RST', // two blanks; placed manually to exercise the blank picker
   },
+  {
+    id: 'demo',
+    name: 'Auto-play demo',
+    desc: 'Sit back — the game plays itself end to end so you can watch every animation, bingo, and the final ScawBot review.',
+    autoDemo: true,
+  },
 ];
 
 /** Look up a scenario by id (falls back to the first). */

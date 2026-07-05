@@ -9,7 +9,7 @@ import { makeLexicon } from './lexicon/lexicon.js';
 import { buildTrie, generateMoves } from './ai/generate.js';
 import { chooseMove, bestMove } from './ai/bot.js';
 
-export function createGame(words, { seed = 'default', difficulty = 'expert', rack = null, setup = null, autoPlay = false } = {}) {
+export function createGame(words, { seed = 'default', difficulty = 'expert', rack = null, setup = null, autoPlay = false, autoDemo = false } = {}) {
   const lexicon = makeLexicon(words, 'ENABLE');
   const trie = buildTrie(words);
   let state = newGame(seed, { rack });        // rack != null only via the dev menu
@@ -24,7 +24,7 @@ export function createGame(words, { seed = 'default', difficulty = 'expert', rac
 
   const api = {
     get state() { return state; },
-    lexicon, difficulty, devPlay,
+    lexicon, difficulty, devPlay, autoDemo,
 
     /** Legal moves available to the player right now (for hints/highlights). */
     playerMoves() { return generateMoves(state.board, state.racks.player, trie, lexicon); },

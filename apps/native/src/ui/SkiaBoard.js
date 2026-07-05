@@ -10,8 +10,8 @@
 // convex outer corners AND concave inner "armpits" alike, with no seams.
 import React, { useMemo } from 'react';
 import {
-  Canvas, Group, RoundedRect, Rect, Path, Text as SkText, Skia, PathOp, DashPathEffect,
-  CornerPathEffect, DiscretePathEffect, useFont,
+  Canvas, Group, RoundedRect, Path, Text as SkText, Skia, PathOp, DashPathEffect,
+  CornerPathEffect, useFont,
 } from '@shopify/react-native-skia';
 import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
 import { SIZE, GAP, PAD, boardWidth, cellOrigin } from '../core/board/geometry.js';
@@ -72,7 +72,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   // pivots about the canvas centre. Game.js hit-tests with the same {cx,cy,oy}.
   const canvasH = canvasHeight && canvasHeight > size ? canvasHeight : size;
   const oy = (canvasH - size) / 2;
-  const letterFont = useFont(Fredoka_600SemiBold, cell * 0.64); // bigger tile letters
+  const letterFont = useFont(Fredoka_600SemiBold, cell * 0.6); // bigger tile letters (room for the top-left value)
   const valueFont = useFont(Fredoka_600SemiBold, Math.max(8, cell * 0.26));
   const premFont = useFont(Fredoka_600SemiBold, Math.max(9, cell * 0.44)); // bigger 3L/2W/etc labels
   const fontsReady = letterFont && valueFont && premFont;
@@ -91,12 +91,6 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     // filled and the corners no longer bloom (see core/board/melt.js).
     const faceR = cell * 0.24;
     const armpitR = cell * 0.16;
-    // gentle pixel-esque "beat up" outer edge: DiscretePathEffect chops the outline
-    // into short segments and jitters them. Because the melt is ONE solid union (no
-    // internal contours), only the OUTER perimeter roughens — the merge between
-    // tiles stays clean. Kept subtle ("used a little", not shredded).
-    const discLen = Math.max(2, cell * 0.16);
-    const discDev = Math.max(0.5, cell * 0.05);
 
     const draftShown = (draft || []).filter((d) => d.tile.id !== dragId);
     const draftMap = new Map(draftShown.map((d) => [keyOf(d.row, d.col), d]));
@@ -171,22 +165,18 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     // corner-rounded (armpits only) at draw time. Flat (no bottom lip / shadow).
     const faceUnion = filled.length ? meltUnion(filled, cell, faceR) : null;
 
-    // subtle internal seams so merged tiles stay differentiable — MUCH fainter than
-    // the rough outer edge: a hairline groove along each internal tile boundary.
-    const seams = [];
-    if (filled.length > 1) {
-      const sw = Math.max(1, cell * 0.05);
-      for (const { a, dir } of connectors(filled)) {
-        const ax = cellOrigin(a.col, cell), ay = cellOrigin(a.row, cell);
-        if (dir === 'h') {
-          const sx = ax + cell + GAP / 2;
-          seams.push(<Rect key={`sm${a.row}-${a.col}h`} x={sx - sw / 2} y={ay + faceR * 0.7} width={sw} height={cell - faceR * 1.4} color="rgba(0,0,0,0.09)" />);
-        } else {
-          const sy = ay + cell + GAP / 2;
-          seams.push(<Rect key={`sm${a.row}-${a.col}v`} x={ax + faceR * 0.7} y={sy - sw / 2} width={cell - faceR * 1.4} height={sw} color="rgba(0,0,0,0.09)" />);
-        }
-      }
-    }
+    // subtle darker border PER TILE (smooth tiles, a touch-darker edge): a thin
+    // tileLip-coloured rounded stroke inset in each filled cell. Gives each tile a
+    // crisp defined edge and a slightly-darker outer border, while the face stays
+    // one clean merged shape underneath.
+    const borders = filled.map(({ row, col }) => {
+      const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
+      const bw = Math.max(1, cell * 0.055);
+      return (
+        <RoundedRect key={`bd${row}-${col}`} x={x + bw / 2} y={y + bw / 2} width={cell - bw} height={cell - bw}
+          r={faceR} color={theme.tileLip} style="stroke" strokeWidth={bw} />
+      );
+    });
 
     // green outline traces the FULL valid word(s) — committed letters included —
     // by unioning every word cell the engine reported (validSet), not just the
@@ -198,9 +188,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       const u = meltUnion(cells, cell, faceR);
       if (u) outline = (
         <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)}>
-          <DiscretePathEffect length={discLen} deviation={discDev}>
-            <CornerPathEffect r={armpitR} />
-          </DiscretePathEffect>
+          <CornerPathEffect r={armpitR} />
         </Path>
       );
     }
@@ -211,13 +199,9 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         {bg}
         {marks}
         {faceUnion && (
-          <Path path={faceUnion} color={theme.tileFace}>
-            <DiscretePathEffect length={discLen} deviation={discDev}>
-              <CornerPathEffect r={armpitR} />
-            </DiscretePathEffect>
-          </Path>
+          <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
         )}
-        {seams}
+        {borders}
         {glyphs}
         {outline}
       </>
@@ -274,11 +258,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     }
     return (
       <Group origin={{ x: ox, y: oyc }} transform={[{ scale: settle.scale }]}>
-        <Path path={u} color={theme.tileFace}>
-          <DiscretePathEffect length={Math.max(2, cell * 0.16)} deviation={Math.max(0.5, cell * 0.05)}>
-            <CornerPathEffect r={armpitR} />
-          </DiscretePathEffect>
-        </Path>
+        <Path path={u} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
         {glyphs}
       </Group>
     );

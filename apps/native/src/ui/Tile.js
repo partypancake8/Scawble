@@ -32,11 +32,11 @@ export default function Tile({ label, value, size, theme, blank, selected, swaps
         swapsel && { borderWidth: 3, borderColor: theme.accent2 },
       ]}
     >
-      <Text style={{ fontFamily: FONT_SEMI, fontSize: size * fontScale * 1.2, color: blank ? theme.accent : theme.tileInk }}>
+      <Text style={{ fontFamily: FONT_SEMI, fontSize: size * fontScale * 1.08, color: blank ? theme.accent : theme.tileInk }}>
         {label}
       </Text>
       {value != null && (
-        <Text style={[styles.val, { fontSize: size * fontScale * 0.4, left: size * 0.11, top: size * 0.05 }]}>
+        <Text style={[styles.val, { fontSize: size * fontScale * 0.32, left: size * 0.08, top: size * 0.05 }]}>
           {value}
         </Text>
       )}

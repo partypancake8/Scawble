@@ -73,6 +73,22 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
     return () => { clearTimeout(timerRef.current); if (settleRaf.current) cancelAnimationFrame(settleRaf.current); };
   }, []);
 
+  // dev "auto-play demo": when it's the player's turn, play the best move after a
+  // beat. The commit triggers the bot (afterPlayer), which bumps `rev` and flips
+  // busy, re-running this effect for the next turn — so the whole game plays itself
+  // (every placement, melt, bingo, and the ScawBot review at the end).
+  useEffect(() => {
+    if (!game.autoDemo || game.state.over) return undefined;
+    if (game.state.turn !== 'player' || busy) return undefined;
+    const t = setTimeout(() => {
+      const best = game.playerBest();
+      if (!best) { recall(); game.pass(); afterPlayer(); return; }
+      commitPlay(best.placements);
+    }, 1150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, rev]);
+
   function shake() {
     if (reduced) return;
     shakeX.setValue(0);
@@ -426,11 +442,11 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   }
   function cancelSwap() { setSwapMode(false); setSwapSel(new Set()); }
 
-  function onSubmit() {
-    if (!draft.length || !validNow || busy) return;
-    clearHint();
-    const res = game.commit(placements);
-    if (!res.ok) { setEvt({ text: res.error, err: true }); H.warn(); sfx('invalid'); shake(); return; }
+  // commit a set of placements with the full juice (score chip, settle, confetti,
+  // sound). Shared by the Submit button and the dev auto-play demo.
+  function commitPlay(pl) {
+    const res = game.commit(pl);
+    if (!res.ok) { setEvt({ text: res.error, err: true }); H.warn(); sfx('invalid'); shake(); return false; }
     const cells = res.move.placements.map((p) => key(p.row, p.col));
     setDraft([]); setTapSelected(null); clearHover(); syncRack();
     setEvt({ text: `${res.move.words.join(', ')} +${res.move.score}${res.move.isBingo ? ' · BINGO!' : ''}`, err: false });
@@ -439,6 +455,12 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
     flyScore(res.move.score, res.move.isBingo);
     runSettle(cells);
     afterPlayer();
+    return true;
+  }
+  function onSubmit() {
+    if (!draft.length || !validNow || busy) return;
+    clearHint();
+    commitPlay(placements);
   }
 
   // ---- bot flow ----
@@ -573,9 +595,9 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
       {/* floating tile while dragging */}
       {dragTile && (
         <Animated.View pointerEvents="none" style={[styles.floating, {
-          // Lift the tile ABOVE the finger so the drop-target cell (and its accent
-          // ring) stays visible under your fingertip instead of being covered.
-          transform: [{ translateX: Animated.subtract(dragXY.x, rackSize * 0.58) }, { translateY: Animated.subtract(dragXY.y, rackSize * 1.5) }],
+          // Lift the tile just a little above the finger: enough that the drop-target
+          // cell peeks out under your fingertip, without feeling detached.
+          transform: [{ translateX: Animated.subtract(dragXY.x, rackSize * 0.58) }, { translateY: Animated.subtract(dragXY.y, rackSize * 0.95) }],
         }]}>
           <Tile label={floatLabel} value={floatVal} blank={floatBlank} size={rackSize * 1.15} theme={theme} fontScale={0.52} />
         </Animated.View>
