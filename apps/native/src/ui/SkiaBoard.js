@@ -4,48 +4,27 @@
 //
 // This component is PURE render-from-props. Zoom/pan (`view`), gesture handling,
 // and drop decisions live in Game.js on top of the tested src/core/board math.
-// Committed and draft tiles "melt": all tiles are unioned into one step-free
-// polygon whose corners are rounded uniformly by CornerPathEffect, so a word
-// reads as one continuous soft pill and junctions (T/plus/L) merge smoothly —
-// convex outer corners AND concave inner "armpits" alike, with no seams.
+//
+// MELT: the fused tile shape is one SDF "metaball" runtime shader (meltShader.js).
+// The board is a signed distance field — a rounded-box SDF per filled cell,
+// smooth-unioned (smin). Straight runs fuse into a clean pill, crossings round
+// uniformly, and enclosed EMPTY cells stay open holes, all correct by construction
+// (see meltShader.js). Cells/glyphs/marks stay vector; the melt + green outline
+// are two shader passes over a tiny 15x15 occupancy mask.
 import React, { useMemo } from 'react';
 import {
-  Canvas, Group, RoundedRect, Path, Text as SkText, Skia, PathOp, DashPathEffect,
-  CornerPathEffect, useFont,
+  Canvas, Group, RoundedRect, Rect, Path, Text as SkText, Skia, DashPathEffect,
+  Shader, ImageShader, FilterMode, MipmapMode, useFont,
 } from '@shopify/react-native-skia';
 import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
 import { SIZE, GAP, PAD, boardWidth, cellOrigin } from '../core/board/geometry.js';
-import { connectors } from '../core/board/melt.js';
+import { filledKeys, maskSignature } from '../core/board/meltmask.js';
+import { getMeltEffect, makeMaskImage, toRgba } from './meltShader.js';
 import { letterOf, VALUE } from '../core/engine/tiles.js';
 import { PREMIUM_BG, PREMIUM_LABEL } from '../theme';
 
 const keyOf = (r, c) => `${r},${c}`;
-
-// The melt: union each filled cell's SMOOTH rounded square (radius `r`, matching
-// the cells exactly) with a FULL-width connector bridging the GAP between every
-// orthogonally-adjacent FILLED pair, so a run of tiles fuses into one smooth PILL
-// with an unbroken edge (no notches/indents). Enclosed empties are never bridged
-// (tested topology), so courtyards still stay open.
-function meltUnion(cells, cell, r) {
-  const ov = r;               // connector overlap into each tile
-  const neck = cell;          // full-width bridge -> one unbroken pill edge
-  let u = null;
-  const add = (p) => { if (!u) u = p; else u.op(p, PathOp.Union); };
-  for (const { row, col } of cells) {
-    const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
-    const p = Skia.Path.Make();
-    p.addRRect(Skia.RRectXY(Skia.XYWHRect(x, y, cell, cell), r, r));
-    add(p);
-  }
-  for (const { a, dir } of connectors(cells)) {
-    const x = cellOrigin(a.col, cell), y = cellOrigin(a.row, cell);
-    const p = Skia.Path.Make();
-    if (dir === 'h') p.addRect({ x: x + cell - ov, y: y + (cell - neck) / 2, width: GAP + 2 * ov, height: neck });
-    else p.addRect({ x: x + (cell - neck) / 2, y: y + cell - ov, width: neck, height: GAP + 2 * ov });
-    add(p);
-  }
-  return u;
-}
+const K_FACTOR = 0.34; // smin blend as a fraction of cell — the "melt amount" knob (fuses tiles into a pill)
 
 // A 4-pointed "sparkle" star centered at (cx, cy). Drawn as a path because the
 // ✦ glyph isn't in Fredoka and Skia has no font fallback (it would render tofu).
@@ -75,44 +54,34 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   const valueFont = useFont(Fredoka_600SemiBold, Math.max(8, cell * 0.26));
   const premFont = useFont(Fredoka_600SemiBold, Math.max(9, cell * 0.44)); // bigger 3L/2W/etc labels
   const fontsReady = letterFont && valueFont && premFont;
+  const effect = getMeltEffect();
+  const cellR = cell * 0.24;
 
-  // The whole scene is memoized on its VISUAL inputs — NOT on `view`. During a
-  // pinch only `view` changes, so we reuse this element tree and Skia just
-  // re-applies the Group transform: crisp zoom without rebuilding the scene.
-  const content = useMemo(() => {
+  // Centre text on its TIGHT visual bounds so both axes account for glyph
+  // side-bearings + cap height (advance-width + full-em metrics sit labels high
+  // and off to one side).
+  const center = (font, text, cx, cy) => {
+    const b = font.measureText ? font.measureText(text) : null;
+    if (b && typeof b.width === 'number' && typeof b.x === 'number') {
+      return { x: cx - b.width / 2 - b.x, y: cy - b.height / 2 - b.y };
+    }
+    const w = font.getTextWidth(text);
+    const m = font.getMetrics();
+    const cap = m && m.capHeight ? m.capHeight : font.getSize() * 0.7;
+    return { x: cx - w / 2, y: cy + cap / 2 };
+  };
+
+  // Vector scene (memoized, NOT dependent on `view`): board card + cell
+  // backgrounds + marks (premium labels / star / hint) + tile glyphs. Split into
+  // `under` (drawn below the melt) and `glyphs` (drawn on top of it).
+  const scene = useMemo(() => {
     if (!fontsReady) return null;
-
-    // ONE shared corner radius: cells, tiles, and tile borders all use `cellR`, and
-    // the board container is `cellR + PAD` (concentric with the corner cells) — so
-    // every rounded shape on the board is an exact ratio of the others.
-    const cellR = cell * 0.24;
-    // NOTE: no concave rounding on the melt. A straight word is already a smooth
-    // pill (rounded rects + full connectors, no sharp outer corners), and leaving
-    // the concave corners sharp keeps crossings/enclosed empties OPEN instead of
-    // rounding them shut into a filled centre blob.
-
     const draftShown = (draft || []).filter((d) => d.tile.id !== dragId);
     const draftMap = new Map(draftShown.map((d) => [keyOf(d.row, d.col), d]));
     const hintMap = new Map((hint ? hint.placements : []).map((p) => [keyOf(p.row, p.col), p]));
 
-    const center = (font, text, cx, cy) => {
-      // Centre on the text's TIGHT visual bounds so both axes account for the glyph
-      // side-bearings and cap height (advance-width + full-em metrics sit labels
-      // high and off to one side). measureText returns bounds relative to the pen.
-      const b = font.measureText ? font.measureText(text) : null;
-      if (b && typeof b.width === 'number' && typeof b.x === 'number') {
-        return { x: cx - b.width / 2 - b.x, y: cy - b.height / 2 - b.y };
-      }
-      const w = font.getTextWidth(text);
-      const m = font.getMetrics();
-      const cap = m && m.capHeight ? m.capHeight : font.getSize() * 0.7;
-      return { x: cx - w / 2, y: cy + cap / 2 };
-    };
-
-    const bg = [];       // cell backgrounds (premium colours)
-    const marks = [];    // premium labels, star, hint ghosts (only on empty cells)
-    const glyphs = [];   // tile letters + values (drawn on top of the melted faces)
-    const filled = [];   // { row, col } of every tile — face-unioned into pills
+    const under = [<RoundedRect key="card" x={0} y={0} width={size} height={size} r={cellR + PAD} color={theme.card} />];
+    const glyphs = [];
 
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
@@ -125,12 +94,11 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         let cellBg = theme.cellBg;
         if (isStar) cellBg = theme.star;
         else if (premium && PREMIUM_BG[premium]) cellBg = theme[PREMIUM_BG[premium]];
-        bg.push(<RoundedRect key={`bg${r}-${c}`} x={x} y={y} width={cell} height={cell} r={cellR} color={cellBg} />);
+        under.push(<RoundedRect key={`bg${r}-${c}`} x={x} y={y} width={cell} height={cell} r={cellR} color={cellBg} />);
 
         const committed = data.tile;
         const d = draftMap.get(keyOf(r, c));
         if (committed || d) {
-          filled.push({ row: r, col: c });
           const blank = committed ? committed.letter === '_' : d.blank;
           const label = committed ? letterOf(committed) : d.letter;
           const val = committed ? committed.value : (d.blank ? 0 : VALUE[d.letter]);
@@ -148,7 +116,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         } else if (hintMap.has(keyOf(r, c))) {
           const g = hintMap.get(keyOf(r, c));
           const gl = center(letterFont, letterOf(g.tile), x + cell / 2, y + cell / 2);
-          marks.push(
+          under.push(
             <Group key={`h${r}-${c}`}>
               <RoundedRect x={x + 2} y={y + 2} width={cell - 4} height={cell - 4} r={cellR * 0.8}
                 color={theme.accent} style="stroke" strokeWidth={2}>
@@ -159,75 +127,74 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
           );
         } else if (isStar) {
           const star = fourPointStarPath(x + cell / 2, y + cell / 2, cell * 0.3, cell * 0.11);
-          marks.push(<Path key="star" path={star} color={theme.accent} />);
+          under.push(<Path key="star" path={star} color={theme.accent} />);
         } else if (premium && PREMIUM_LABEL[premium]) {
           const t = PREMIUM_LABEL[premium];
           const pp = center(premFont, t, x + cell / 2, y + cell / 2);
-          marks.push(<SkText key={`p${r}-${c}`} font={premFont} text={t} x={pp.x} y={pp.y} color={theme.premInk} />);
+          under.push(<SkText key={`p${r}-${c}`} font={premFont} text={t} x={pp.x} y={pp.y} color={theme.premInk} />);
         }
       }
     }
-
-    // melted tile faces: union of rounded cells (radius cellR) + thin connector necks.
-    const faceUnion = filled.length ? meltUnion(filled, cell, cellR) : null;
-
-    const borderW = Math.max(1.5, cell * 0.05); // one unbroken darker outline around the whole pill
-
-    // green outline traces the FULL valid word(s) — committed letters included —
-    // by unioning every word cell the engine reported (validSet), not just the
-    // newly dropped tiles. Same union + corner rounding, so its junctions round too.
-    let outline = null;
-    if (validSet && validSet.size) {
-      const cells = [];
-      for (const k of validSet) { const [r, c] = k.split(',').map(Number); cells.push({ row: r, col: c }); }
-      const u = meltUnion(cells, cell, cellR);
-      if (u) outline = (
-        <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)} />
-      );
-    }
-
-    return (
-      <>
-        <RoundedRect x={0} y={0} width={size} height={size} r={cellR + PAD} color={theme.card} />
-        {bg}
-        {marks}
-        {faceUnion && (
-          <>
-            <Path path={faceUnion} color={theme.tileFace} />
-            <Path path={faceUnion} color={theme.tileLip} style="stroke" strokeWidth={borderW} />
-          </>
-        )}
-        {glyphs}
-        {outline}
-      </>
-    );
+    return { under, glyphs };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, draft, hint, validSet, dragId, cell, theme, rev, fontsReady, letterFont, valueFont, premFont, size]);
+  }, [board, draft, hint, dragId, cell, theme, rev, fontsReady, letterFont, valueFont, premFont, size]);
 
-  // ---- cheap per-frame overlays (kept OUT of the memoized scene above so a drag
-  // hover or a settle tick doesn't rebuild all 225 cells). ----
+  // 15x15 occupancy masks (rebuilt only when the filled set changes).
+  const filledSet = useMemo(() => (fontsReady ? filledKeys(board, draft, dragId) : new Set()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [board, draft, dragId, rev, fontsReady]);
+  const meltMask = useMemo(() => (filledSet.size ? makeMaskImage(filledSet) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [maskSignature(filledSet)]);
+  const wordSig = validSet && validSet.size ? [...validSet].sort().join('|') : '';
+  const wordMask = useMemo(() => (wordSig ? makeMaskImage(new Set(wordSig.split('|'))) : null), [wordSig]);
+  const settleSig = settle && settle.cells ? settle.cells.join('|') : '';
+  const settleMask = useMemo(() => (settleSig ? makeMaskImage(new Set(settleSig.split('|'))) : null), [settleSig]);
 
-  // Accent outline on the cell a dragged tile would drop into. `target` = {row,col}.
-  const targetFx = target
-    ? (() => {
-        const r = cell * 0.24;
-        const x = cellOrigin(target.col, cell), y = cellOrigin(target.row, cell);
-        return (
-          <RoundedRect x={x + 1.5} y={y + 1.5} width={cell - 3} height={cell - 3} r={r}
-            color={theme.accent} style="stroke" strokeWidth={Math.max(2, cell * 0.08)} opacity={0.92} />
-        );
-      })()
+  // One melt pass: fills the board rect with the SDF isosurface (fill + edge band).
+  // fragCoord is content-space; aaScale (device px per content unit) keeps the AA
+  // ~1px at any zoom so the isosurface stays print-sharp.
+  const meltRect = (mask, fill, border, borderW, aaScale) => {
+    if (!effect || !mask) return null;
+    const uniforms = {
+      u_pad: PAD, u_pitch: cell + GAP, u_half: (cell + GAP) / 2, u_radius: cellR,
+      u_k: cell * K_FACTOR, u_aa: 0.7 / Math.max(0.4, aaScale), u_borderW: borderW,
+      u_fill: fill, u_border: border,
+    };
+    return (
+      <Rect x={0} y={0} width={size} height={size}>
+        <Shader source={effect} uniforms={uniforms}>
+          <ImageShader image={mask} tx="clamp" ty="clamp" fit="none"
+            sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }} />
+        </Shader>
+      </Rect>
+    );
+  };
+
+  const meltFx = meltRect(meltMask, toRgba(theme.tileFace), toRgba(theme.tileLip), Math.max(1.3, cell * 0.05), view.scale);
+  const outlineFx = meltRect(wordMask, [0, 0, 0, 0], toRgba(theme.good), Math.max(1.6, cell * 0.055), view.scale);
+
+  // Fallback if the shader ever fails to compile: plain per-cell cream faces so
+  // tiles are still visible (no merge, but never a blank/crash).
+  const faceFallback = (!effect && filledSet.size)
+    ? [...filledSet].map((k) => {
+        const [r, c] = k.split(',').map(Number);
+        return <RoundedRect key={`ff${k}`} x={cellOrigin(c, cell)} y={cellOrigin(r, cell)} width={cell} height={cell} r={cellR} color={theme.tileFace} />;
+      })
     : null;
 
-  // The just-committed word's "settle" pop: redraw those cells as one melted group
-  // scaled (>= 1) about their centroid, so they land enlarged and ease to rest.
-  // Scale comes from the tested settleScale() curve, ticked by Game.
+  // Accent outline on the cell a dragged tile would drop into. `target` = {row,col}.
+  const targetFx = target ? (
+    <RoundedRect x={cellOrigin(target.col, cell) + 1.5} y={cellOrigin(target.row, cell) + 1.5}
+      width={cell - 3} height={cell - 3} r={cellR}
+      color={theme.accent} style="stroke" strokeWidth={Math.max(2, cell * 0.08)} opacity={0.92} />
+  ) : null;
+
+  // The just-committed word's "settle" pop: redraw those cells (melt shader) scaled
+  // (>= 1) about their centroid, so they land enlarged and ease to rest.
   const settleFx = (() => {
-    if (!settle || !settle.cells || !settle.cells.length || !fontsReady) return null;
-    const cellR = cell * 0.24;
-    const cells = settle.cells.map((k) => { const [r, c] = k.split(',').map(Number); return { row: r, col: c }; });
-    const u = meltUnion(cells, cell, cellR);
-    if (!u) return null;
+    if (!settle || !settleMask || !fontsReady) return null;
+    const cells = settleSig.split('|').map((k) => { const [r, c] = k.split(',').map(Number); return { row: r, col: c }; });
     let sx = 0, sy = 0;
     for (const { row, col } of cells) { sx += cellOrigin(col, cell) + cell / 2; sy += cellOrigin(row, cell) + cell / 2; }
     const ox = sx / cells.length, oyc = sy / cells.length;
@@ -236,24 +203,15 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       const tile = board[row] && board[row][col] && board[row][col].tile;
       if (!tile) continue;
       const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
-      const label = letterOf(tile);
-      const w = letterFont.getTextWidth(label);
-      const m = letterFont.getMetrics();
-      glyphs.push(
-        <SkText key={`sl${row}-${col}`} font={letterFont} text={label}
-          x={x + cell / 2 - w / 2} y={y + cell / 2 - (m.ascent + m.descent) / 2}
-          color={tile.letter === '_' ? theme.accent : theme.tileInk} />
-      );
-      if (tile.value != null) {
-        glyphs.push(
-          <SkText key={`sv${row}-${col}`} font={valueFont} text={String(tile.value)}
-            x={x + cell * 0.13} y={y + cell * 0.32} color="rgba(0,0,0,0.42)" />
-        );
-      }
+      const lp = center(letterFont, letterOf(tile), x + cell / 2, y + cell / 2);
+      glyphs.push(<SkText key={`sl${row}-${col}`} font={letterFont} text={letterOf(tile)} x={lp.x} y={lp.y}
+        color={tile.letter === '_' ? theme.accent : theme.tileInk} />);
+      if (tile.value != null) glyphs.push(<SkText key={`sv${row}-${col}`} font={valueFont} text={String(tile.value)}
+        x={x + cell * 0.13} y={y + cell * 0.32} color="rgba(0,0,0,0.42)" />);
     }
     return (
       <Group origin={{ x: ox, y: oyc }} transform={[{ scale: settle.scale }]}>
-        <Path path={u} color={theme.tileFace} />
+        {meltRect(settleMask, toRgba(theme.tileFace), toRgba(theme.tileLip), Math.max(1.3, cell * 0.05), view.scale * settle.scale)}
         {glyphs}
       </Group>
     );
@@ -266,7 +224,11 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     <Canvas pointerEvents="none" style={{ width: size, height: canvasH }}>
       <Group transform={[{ translateX: view.tx }, { translateY: view.ty }, { scale: view.scale }]} origin={{ x: size / 2, y: canvasH / 2 }}>
         <Group transform={[{ translateY: oy }]}>
-          {content}
+          {scene?.under}
+          {faceFallback}
+          {meltFx}
+          {scene?.glyphs}
+          {outlineFx}
           {targetFx}
           {settleFx}
         </Group>
