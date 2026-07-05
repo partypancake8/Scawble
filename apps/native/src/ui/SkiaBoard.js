@@ -86,16 +86,27 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     // the board container is `cellR + PAD` (concentric with the corner cells) — so
     // every rounded shape on the board is an exact ratio of the others.
     const cellR = cell * 0.24;
-    const armpitR = cell * 0.12; // round the concave neck junctions a touch
+    // NOTE: no concave rounding on the melt. A straight word is already a smooth
+    // pill (rounded rects + full connectors, no sharp outer corners), and leaving
+    // the concave corners sharp keeps crossings/enclosed empties OPEN instead of
+    // rounding them shut into a filled centre blob.
 
     const draftShown = (draft || []).filter((d) => d.tile.id !== dragId);
     const draftMap = new Map(draftShown.map((d) => [keyOf(d.row, d.col), d]));
     const hintMap = new Map((hint ? hint.placements : []).map((p) => [keyOf(p.row, p.col), p]));
 
     const center = (font, text, cx, cy) => {
+      // Centre on the text's TIGHT visual bounds so both axes account for the glyph
+      // side-bearings and cap height (advance-width + full-em metrics sit labels
+      // high and off to one side). measureText returns bounds relative to the pen.
+      const b = font.measureText ? font.measureText(text) : null;
+      if (b && typeof b.width === 'number' && typeof b.x === 'number') {
+        return { x: cx - b.width / 2 - b.x, y: cy - b.height / 2 - b.y };
+      }
       const w = font.getTextWidth(text);
       const m = font.getMetrics();
-      return { x: cx - w / 2, y: cy - (m.ascent + m.descent) / 2 };
+      const cap = m && m.capHeight ? m.capHeight : font.getSize() * 0.7;
+      return { x: cx - w / 2, y: cy + cap / 2 };
     };
 
     const bg = [];       // cell backgrounds (premium colours)
@@ -171,9 +182,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       for (const k of validSet) { const [r, c] = k.split(',').map(Number); cells.push({ row: r, col: c }); }
       const u = meltUnion(cells, cell, cellR);
       if (u) outline = (
-        <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)}>
-          <CornerPathEffect r={armpitR} />
-        </Path>
+        <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)} />
       );
     }
 
@@ -184,8 +193,8 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         {marks}
         {faceUnion && (
           <>
-            <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
-            <Path path={faceUnion} color={theme.tileLip} style="stroke" strokeWidth={borderW}><CornerPathEffect r={armpitR} /></Path>
+            <Path path={faceUnion} color={theme.tileFace} />
+            <Path path={faceUnion} color={theme.tileLip} style="stroke" strokeWidth={borderW} />
           </>
         )}
         {glyphs}
@@ -215,7 +224,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   // Scale comes from the tested settleScale() curve, ticked by Game.
   const settleFx = (() => {
     if (!settle || !settle.cells || !settle.cells.length || !fontsReady) return null;
-    const cellR = cell * 0.24, armpitR = cell * 0.12;
+    const cellR = cell * 0.24;
     const cells = settle.cells.map((k) => { const [r, c] = k.split(',').map(Number); return { row: r, col: c }; });
     const u = meltUnion(cells, cell, cellR);
     if (!u) return null;
@@ -244,7 +253,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     }
     return (
       <Group origin={{ x: ox, y: oyc }} transform={[{ scale: settle.scale }]}>
-        <Path path={u} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
+        <Path path={u} color={theme.tileFace} />
         {glyphs}
       </Group>
     );
