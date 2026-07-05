@@ -21,40 +21,21 @@ import { PREMIUM_BG, PREMIUM_LABEL } from '../theme';
 
 const keyOf = (r, c) => `${r},${c}`;
 
-// A rounded rect whose corners are PIXEL-STEPPED (two 90-degree steps) instead of
-// a smooth arc — a literal pixel-art tile. `s` is the step size.
-function pixelRRectPath(x, y, w, h, s) {
-  const p = Skia.Path.Make();
-  const X = x + w, Y = y + h;
-  p.moveTo(x + 2 * s, y);
-  p.lineTo(X - 2 * s, y);
-  p.lineTo(X - 2 * s, y + s); p.lineTo(X - s, y + s);
-  p.lineTo(X - s, y + 2 * s); p.lineTo(X, y + 2 * s);
-  p.lineTo(X, Y - 2 * s);
-  p.lineTo(X - s, Y - 2 * s); p.lineTo(X - s, Y - s);
-  p.lineTo(X - 2 * s, Y - s); p.lineTo(X - 2 * s, Y);
-  p.lineTo(x + 2 * s, Y);
-  p.lineTo(x + 2 * s, Y - s); p.lineTo(x + s, Y - s);
-  p.lineTo(x + s, Y - 2 * s); p.lineTo(x, Y - 2 * s);
-  p.lineTo(x, y + 2 * s);
-  p.lineTo(x + s, y + 2 * s); p.lineTo(x + s, y + s);
-  p.lineTo(x + 2 * s, y + s);
-  p.close();
-  return p;
-}
-
-// The melt: union each filled cell's pixel-stepped square with a THIN connector
-// "neck" bridging only the middle of the GAP between orthogonally-adjacent FILLED
-// pairs (via the tested `connectors` topology). Thin necks (not full-tile bridges)
-// mean far less void is filled between touching rows/tiles, and each tile still
-// reads as its own pixel square. Enclosed empties are never bridged.
-function meltUnion(cells, cell, s) {
-  const ov = s;               // connector overlap into each tile
-  const neck = cell * 0.6;    // thin neck (was full cell -> much less void filled)
+// The melt: union each filled cell's SMOOTH rounded square (radius `r`, matching
+// the cells exactly) with a THIN connector "neck" bridging only the middle of each
+// GAP between orthogonally-adjacent FILLED cells. Thin necks (not full-tile
+// bridges) mean far less void is filled between touching rows/tiles while words
+// still read as connected. Enclosed empties are never bridged (tested topology).
+function meltUnion(cells, cell, r) {
+  const ov = r;               // connector overlap into each tile
+  const neck = cell * 0.6;    // thin neck -> much less void filled than a full bridge
   let u = null;
   const add = (p) => { if (!u) u = p; else u.op(p, PathOp.Union); };
   for (const { row, col } of cells) {
-    add(pixelRRectPath(cellOrigin(col, cell), cellOrigin(row, cell), cell, cell, s));
+    const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
+    const p = Skia.Path.Make();
+    p.addRRect(Skia.RRectXY(Skia.XYWHRect(x, y, cell, cell), r, r));
+    add(p);
   }
   for (const { a, dir } of connectors(cells)) {
     const x = cellOrigin(a.col, cell), y = cellOrigin(a.row, cell);
@@ -101,8 +82,11 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   const content = useMemo(() => {
     if (!fontsReady) return null;
 
+    // ONE shared corner radius: cells, tiles, and tile borders all use `cellR`, and
+    // the board container is `cellR + PAD` (concentric with the corner cells) — so
+    // every rounded shape on the board is an exact ratio of the others.
     const cellR = cell * 0.24;
-    const pxStep = Math.max(2, cell * 0.1); // pixel-art step size for melted tiles + per-tile borders
+    const armpitR = cell * 0.12; // round the concave neck junctions a touch
 
     const draftShown = (draft || []).filter((d) => d.tile.id !== dragId);
     const draftMap = new Map(draftShown.map((d) => [keyOf(d.row, d.col), d]));
@@ -173,18 +157,18 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
       }
     }
 
-    // melted tile faces: union of pixel-stepped cells + thin connector necks. Flat.
-    const faceUnion = filled.length ? meltUnion(filled, cell, pxStep) : null;
+    // melted tile faces: union of rounded cells (radius cellR) + thin connector necks.
+    const faceUnion = filled.length ? meltUnion(filled, cell, cellR) : null;
 
-    // literal pixel-art border PER TILE: a hard tileLip-coloured stroke tracing each
-    // filled cell's pixel-stepped outline, so every tile has a crisp blocky darker
-    // edge and stays differentiable within a merged word.
+    // subtle darker border PER TILE (smooth, same rounded shape as the cells): a
+    // tileLip-coloured rounded stroke concentric-inset in each filled cell, so every
+    // tile has a crisp defined edge and stays differentiable within a merged word.
     const borders = filled.map(({ row, col }) => {
       const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
-      const bw = Math.max(1.5, cell * 0.06);
+      const bw = Math.max(1.5, cell * 0.055);
       return (
-        <Path key={`bd${row}-${col}`} path={pixelRRectPath(x + bw / 2, y + bw / 2, cell - bw, cell - bw, pxStep)}
-          color={theme.tileLip} style="stroke" strokeWidth={bw} />
+        <RoundedRect key={`bd${row}-${col}`} x={x + bw / 2} y={y + bw / 2} width={cell - bw} height={cell - bw}
+          r={cellR - bw / 2} color={theme.tileLip} style="stroke" strokeWidth={bw} />
       );
     });
 
@@ -195,9 +179,11 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     if (validSet && validSet.size) {
       const cells = [];
       for (const k of validSet) { const [r, c] = k.split(',').map(Number); cells.push({ row: r, col: c }); }
-      const u = meltUnion(cells, cell, pxStep);
+      const u = meltUnion(cells, cell, cellR);
       if (u) outline = (
-        <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)} />
+        <Path path={u} color={theme.good} style="stroke" strokeWidth={Math.max(2.5, cell * 0.09)}>
+          <CornerPathEffect r={armpitR} />
+        </Path>
       );
     }
 
@@ -207,7 +193,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         {bg}
         {marks}
         {faceUnion && (
-          <Path path={faceUnion} color={theme.tileFace} />
+          <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
         )}
         {borders}
         {glyphs}
@@ -237,9 +223,9 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
   // Scale comes from the tested settleScale() curve, ticked by Game.
   const settleFx = (() => {
     if (!settle || !settle.cells || !settle.cells.length || !fontsReady) return null;
-    const pxStep = Math.max(2, cell * 0.1);
+    const cellR = cell * 0.24, armpitR = cell * 0.12;
     const cells = settle.cells.map((k) => { const [r, c] = k.split(',').map(Number); return { row: r, col: c }; });
-    const u = meltUnion(cells, cell, pxStep);
+    const u = meltUnion(cells, cell, cellR);
     if (!u) return null;
     let sx = 0, sy = 0;
     for (const { row, col } of cells) { sx += cellOrigin(col, cell) + cell / 2; sy += cellOrigin(row, cell) + cell / 2; }
@@ -266,7 +252,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     }
     return (
       <Group origin={{ x: ox, y: oyc }} transform={[{ scale: settle.scale }]}>
-        <Path path={u} color={theme.tileFace} />
+        <Path path={u} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
         {glyphs}
       </Group>
     );
