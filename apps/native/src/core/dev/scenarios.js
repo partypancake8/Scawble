@@ -9,21 +9,23 @@ export const SCENARIOS = [
   {
     id: 'bingo',
     name: 'Bingo opening',
-    desc: 'Lay RETINAS across the centre for a 7-tile bingo (+50): confetti, settle, score chip.',
+    desc: 'RETINAS is pre-placed across the centre — just hit Submit for a 7-tile bingo (+50).',
     rack: 'RETINAS', // all value-1, distinct -> deterministic 7x2 + 50 = 64 on the centre DW
+    autoPlay: true,  // pre-place the best play as a draft; you only confirm
   },
   {
     id: 'crossing',
     name: 'Crossing word',
-    desc: 'HORNS is already on the board; hook a crossing play with PAINTER in your rack.',
+    desc: 'HORNS is on the board and PAINTER is pre-placed as a crossing play — just Submit.',
     rack: 'PAINTER',
     setup: [{ word: 'HORNS', row: 7, col: 5, dir: 'H' }], // covers the centre so it is connected
+    autoPlay: true,
   },
   {
     id: 'blank',
     name: 'Blank + hint',
     desc: 'Two blanks in the rack (test the blank picker); one Hint reveals the best play.',
-    rack: 'AE__RST', // two blanks; still a rich rack to build from
+    rack: 'AE__RST', // two blanks; placed manually to exercise the blank picker
   },
 ];
 

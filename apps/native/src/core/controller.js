@@ -9,11 +9,14 @@ import { makeLexicon } from './lexicon/lexicon.js';
 import { buildTrie, generateMoves } from './ai/generate.js';
 import { chooseMove, bestMove } from './ai/bot.js';
 
-export function createGame(words, { seed = 'default', difficulty = 'expert', rack = null, setup = null } = {}) {
+export function createGame(words, { seed = 'default', difficulty = 'expert', rack = null, setup = null, autoPlay = false } = {}) {
   const lexicon = makeLexicon(words, 'ENABLE');
   const trie = buildTrie(words);
   let state = newGame(seed, { rack });        // rack != null only via the dev menu
   if (setup) for (const s of setup) placeCommitted(state, s);
+  // dev auto-play: pre-compute the best play so the UI can pre-place it as a draft
+  // (you just confirm/Submit). Only set via the dev menu.
+  const devPlay = autoPlay ? ((bestMove(state.board, state.racks.player, trie, lexicon) || {}).placements || null) : null;
 
   const analysis = [];        // per player turn: { actual, best, bestWords }
   let playerBestTotal = 0;    // sum of player's best-available scores (luck proxy)
@@ -21,7 +24,7 @@ export function createGame(words, { seed = 'default', difficulty = 'expert', rac
 
   const api = {
     get state() { return state; },
-    lexicon, difficulty,
+    lexicon, difficulty, devPlay,
 
     /** Legal moves available to the player right now (for hints/highlights). */
     playerMoves() { return generateMoves(state.board, state.racks.player, trie, lexicon); },

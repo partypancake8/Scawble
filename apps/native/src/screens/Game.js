@@ -38,7 +38,10 @@ export default function Game({ game, settings, theme, onExit, onOpenSettings, on
   // Without this the board wouldn't repaint after a committed move.
   const [rev, bump] = useReducer((x) => x + 1, 0);
 
-  const [draft, setDraft] = useState([]);
+  // dev scenarios can pre-place their best play as a draft (you just Submit)
+  const [draft, setDraft] = useState(() =>
+    (game.devPlay || []).map((p) => ({ tile: p.tile, row: p.row, col: p.col, letter: letterOf(p.tile), blank: p.tile.letter === '_' }))
+  );
   const [rackOrder, setRackOrder] = useState(() => game.state.racks.player.map((t) => t.id));
   const [tapSelected, setTapSelected] = useState(null);
   const [hint, setHint] = useState(null);
