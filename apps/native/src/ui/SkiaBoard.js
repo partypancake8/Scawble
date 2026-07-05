@@ -22,13 +22,13 @@ import { PREMIUM_BG, PREMIUM_LABEL } from '../theme';
 const keyOf = (r, c) => `${r},${c}`;
 
 // The melt: union each filled cell's SMOOTH rounded square (radius `r`, matching
-// the cells exactly) with a THIN connector "neck" bridging only the middle of each
-// GAP between orthogonally-adjacent FILLED cells. Thin necks (not full-tile
-// bridges) mean far less void is filled between touching rows/tiles while words
-// still read as connected. Enclosed empties are never bridged (tested topology).
+// the cells exactly) with a FULL-width connector bridging the GAP between every
+// orthogonally-adjacent FILLED pair, so a run of tiles fuses into one smooth PILL
+// with an unbroken edge (no notches/indents). Enclosed empties are never bridged
+// (tested topology), so courtyards still stay open.
 function meltUnion(cells, cell, r) {
   const ov = r;               // connector overlap into each tile
-  const neck = cell * 0.6;    // thin neck -> much less void filled than a full bridge
+  const neck = cell;          // full-width bridge -> one unbroken pill edge
   let u = null;
   const add = (p) => { if (!u) u = p; else u.op(p, PathOp.Union); };
   for (const { row, col } of cells) {
@@ -160,17 +160,7 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
     // melted tile faces: union of rounded cells (radius cellR) + thin connector necks.
     const faceUnion = filled.length ? meltUnion(filled, cell, cellR) : null;
 
-    // subtle darker border PER TILE (smooth, same rounded shape as the cells): a
-    // tileLip-coloured rounded stroke concentric-inset in each filled cell, so every
-    // tile has a crisp defined edge and stays differentiable within a merged word.
-    const borders = filled.map(({ row, col }) => {
-      const x = cellOrigin(col, cell), y = cellOrigin(row, cell);
-      const bw = Math.max(1.5, cell * 0.055);
-      return (
-        <RoundedRect key={`bd${row}-${col}`} x={x + bw / 2} y={y + bw / 2} width={cell - bw} height={cell - bw}
-          r={cellR - bw / 2} color={theme.tileLip} style="stroke" strokeWidth={bw} />
-      );
-    });
+    const borderW = Math.max(1.5, cell * 0.05); // one unbroken darker outline around the whole pill
 
     // green outline traces the FULL valid word(s) — committed letters included —
     // by unioning every word cell the engine reported (validSet), not just the
@@ -193,9 +183,11 @@ export default function SkiaBoard({ board, draft, hint, validSet, cell, theme, v
         {bg}
         {marks}
         {faceUnion && (
-          <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
+          <>
+            <Path path={faceUnion} color={theme.tileFace}><CornerPathEffect r={armpitR} /></Path>
+            <Path path={faceUnion} color={theme.tileLip} style="stroke" strokeWidth={borderW}><CornerPathEffect r={armpitR} /></Path>
+          </>
         )}
-        {borders}
         {glyphs}
         {outline}
       </>
